@@ -5,11 +5,65 @@ from pathlib import Path
 from typing import Optional
 
 import mlx_whisper
+from mlx_whisper import whisper as _mlx_whisper_module
 
 from .config import settings
 from .schemas import Segment, TranscriptionResult
 
 logger = logging.getLogger(__name__)
+
+
+# ===== Monkey-patch 兼容新版 transformers config.json =====
+# 新版 transformers 生成的 Whisper config.json 含 50+ 字段，
+# 而 mlx_whisper 的 ModelDimensions dataclass 只接受 10 个字段。
+# 这里给 ModelDimensions 增加一个接受 **kwargs 的 __init__。
+_original_model_dimensions_init = _mlx_whisper_module.ModelDimensions.__init__
+
+
+def _patched_model_dimensions_init(self, **kwargs):
+    """接受任意 kwargs（忽略未知字段），只传 ModelDimensions 认识的字段"""
+    valid_fields = {
+        "n_mels", "n_audio_ctx", "n_audio_state", "n_audio_head", "n_audio_layer",
+        "n_vocab", "n_text_ctx", "n_text_state", "n_text_head", "n_text_layer",
+    }
+    # 字段名映射（新版 transformers → mlx_whisper）
+    field_map = {
+        "num_mel_bins": "n_mels",
+        "max_source_positions": "n_audio_ctx",
+        "d_model": None,  # 同时映射到 audio 和 text
+        "encoder_attention_heads": "n_audio_head",
+        "num_hidden_layers": None,  # 同时映射
+        "vocab_size": "n_vocab",
+        "max_target_positions": "n_text_ctx",
+        "decoder_attention_heads": "n_text_head",
+        "decoder_layers": "n_text_layer",
+        "encoder_layers": "n_audio_layer",
+    }
+
+    # 处理映射
+    mapped = {}
+    for k, v in kwargs.items():
+        if k in valid_fields:
+            mapped[k] = v
+        elif k in field_map:
+            target = field_map[k]
+            if target is None:
+                # 多个目标字段
+                if k == "d_model":
+                    mapped["n_audio_state"] = v
+                    mapped["n_text_state"] = v
+                elif k == "num_hidden_layers":
+                    mapped["n_audio_layer"] = v
+                    mapped["n_text_layer"] = v
+            else:
+                mapped[target] = v
+        # 其他字段忽略
+
+    _original_model_dimensions_init(self, **mapped)
+
+
+_mlx_whisper_module.ModelDimensions.__init__ = _patched_model_dimensions_init
+logger.info("✅ Patched mlx_whisper.ModelDimensions for newer transformers config")
 
 
 class MLXTranscriber:
@@ -35,7 +89,7 @@ class MLXTranscriber:
             audio = np.zeros(8000, dtype=np.float32)
             mlx_whisper.transcribe(
                 audio,
-                path_or_hf_model=self._model_name,
+                path_or_hf_repo=self._model_name,
                 language=settings.default_language,
             )
             self._loaded = True
@@ -65,16 +119,17 @@ class MLXTranscriber:
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
         lang = language or settings.default_language
+        # mlx_whisper 暂不支持 beam search，用 greedy (temperature=0)
         beam = beam_size or settings.beam_size
 
-        logger.info(f"Transcribing: {audio_path} (lang={lang}, beam={beam})")
+        logger.info(f"Transcribing: {audio_path} (lang={lang})")
         t0 = time.time()
 
         result = mlx_whisper.transcribe(
             str(audio_path),
-            path_or_hf_model=self._model_name,
+            path_or_hf_repo=self._model_name,
             language=lang,
-            beam_size=beam,
+            temperature=0,  # greedy decoding (mlx_whisper 不支持 beam)
             verbose=None,
         )
 

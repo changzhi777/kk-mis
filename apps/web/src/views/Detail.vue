@@ -58,7 +58,7 @@
 
           <el-empty v-else-if="meeting?.status === 'failed'" description="处理失败" />
           <div v-else class="processing">
-            <el-progress :percentage="progressValue(meeting?.status)" :status="meeting?.status === 'failed' ? 'exception' : ''" />
+            <el-progress :percentage="progressValue(meeting?.status)" />
             <p class="hint">{{ statusHint(meeting?.status) }}</p>
             <el-button size="small" @click="load">刷新状态</el-button>
           </div>

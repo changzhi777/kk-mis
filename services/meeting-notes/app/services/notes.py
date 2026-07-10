@@ -2,8 +2,11 @@
 """
 import logging
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
+
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
 from ..models import Meeting
@@ -26,6 +29,7 @@ class MeetingService:
         meeting: Meeting,
         audio_path: str | Path,
         language: str = "zh",
+        session: AsyncSession = None,
     ) -> Meeting:
         """处理会议：ASR → LLM 整理 → 落库
 
@@ -33,6 +37,7 @@ class MeetingService:
             meeting: Meeting 数据库对象
             audio_path: 音频文件路径
             language: 语言代码
+            session: 数据库 session（用于持久化）
 
         Returns:
             更新后的 Meeting 对象
@@ -43,7 +48,8 @@ class MeetingService:
         try:
             # 步骤 1: ASR 转写
             meeting.status = MeetingStatus.TRANSCRIBING.value
-            await meeting.save()  # async session need await
+            if session:
+                await session.commit()
 
             t0 = time.time()
             asr_result = await self.asr_client.transcribe(
@@ -57,6 +63,8 @@ class MeetingService:
             meeting.asr_model = asr_result.get("model", "")
             meeting.asr_node_id = asr_result.get("_node_id", "")
             meeting.status = MeetingStatus.TRANSCRIBED.value
+            if session:
+                await session.commit()
 
             logger.info(
                 f"Meeting {meeting.id} ASR done in {asr_elapsed:.1f}s, "
@@ -65,6 +73,8 @@ class MeetingService:
 
             # 步骤 2: LLM 整理
             meeting.status = MeetingStatus.SUMMARIZING.value
+            if session:
+                await session.commit()
 
             t0 = time.time()
             summary = await generate_meeting_summary(
@@ -78,6 +88,7 @@ class MeetingService:
             meeting.decisions = summary.get("decisions", [])
             meeting.action_items = summary.get("action_items", [])
             meeting.llm_model = settings.glm_model
+            meeting.completed_at = datetime.utcnow()
             meeting.status = MeetingStatus.COMPLETED.value
 
             logger.info(
@@ -88,6 +99,10 @@ class MeetingService:
             logger.exception(f"Meeting {meeting.id} processing failed: {e}")
             meeting.status = MeetingStatus.FAILED.value
             meeting.error_message = str(e)[:1000]
+
+        # 最后一次 commit
+        if session:
+            await session.commit()
 
         return meeting
 

@@ -112,9 +112,9 @@ async def _process_meeting_task(
                 logger.error(f"Meeting {meeting_id} not found")
                 return
             service = MeetingService(llm_provider=llm_provider)
-            updated_meeting = await service.process_meeting(meeting, audio_path, language)
-            session.add(updated_meeting)
-            await session.commit()
+            updated_meeting = await service.process_meeting(
+                meeting, audio_path, language, session=session
+            )
             logger.info(
                 f"Meeting {meeting_id} processed: "
                 f"status={updated_meeting.status}, llm={llm_provider}"
