@@ -1,0 +1,99 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+env/
+ENV/
+pip-wheel-metadata/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# ===== Node / Frontend =====
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnp.*
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+*.tsbuildinfo
+.next/
+.nuxt/
+.vuepress/dist/
+.vite/
+.parcel-cache/
+.cache/
+coverage/
+*.local
+
+# ===== Environment / Secrets =====
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.crt
+secrets/
+config.local.yml
+config.local.yaml
+
+# ===== IDE / Editor =====
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ===== Office temp lock files (项目内遗留) =====
+.~lock.*
+*.tmp
+lu*.tmp
+
+# ===== Logs =====
+*.log
+logs/
+
+# ===== Database / Data =====
+*.sqlite3
+*.db
+data/
+uploads/
+!uploads/.gitkeep
+storage/
+!storage/.gitkeep
+
+# ===== Docker =====
+.dockerignore
+
+# ===== OS / Misc =====
+.fuse_hidden*
+.Trash-*
+ehthumbs.db
+
+# ===== Project-specific =====
+# 后续项目目录（保留根目录干净）
+apps/*/node_modules/
+apps/*/dist/
+apps/*/.env
+services/*/__pycache__/
+services/*/.venv/
+services/*/.env
