@@ -80,7 +80,7 @@ async def health():
         status="ok",
         version="0.1.0",
         asr_nodes=asr_nodes_count,
-        llm_provider=f"glm(default) | minimax | omlx({settings.omlx_model})",
+        llm_provider=f"glm:{settings.glm_model} | minimax:{settings.minimax_model} | omlx({settings.omlx_model})",
         database=settings.database_display,
     )
 
