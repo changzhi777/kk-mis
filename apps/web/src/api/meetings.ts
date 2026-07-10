@@ -12,7 +12,7 @@ import type {
 // API Key 不在前端持有：Vite 的 VITE_* 变量会编译进 bundle，无法保密。
 // 浏览器同源请求经 Nginx /oa/ 反代时，由 Nginx 服务端注入 X-API-Key。
 const api = axios.create({
-  baseURL: '/',
+  baseURL: import.meta.env.BASE_URL.replace(/\/$/, ''),
   timeout: 600000 // 10 分钟（长音频 ASR）
 })
 

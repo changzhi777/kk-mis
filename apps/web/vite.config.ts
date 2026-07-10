@@ -6,6 +6,7 @@ import Components from 'unplugin-vue-components/vite'
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 
 export default defineConfig({
+  base: '/oa/',
   plugins: [
     vue(),
     // 自动按需导入 EP API（ElMessage 等）+ vue/vue-router/pinia
