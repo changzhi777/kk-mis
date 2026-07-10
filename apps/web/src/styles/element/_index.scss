@@ -1,0 +1,4 @@
+// Element Plus 样式入口（按需引入模式）
+// 组件样式由 unplugin-vue-components 按需引入，变量通过 vite.additionalData 注入
+// 的 _variables.scss 覆盖。这里只引入暗色模式基础（编译期带覆盖后的变量）。
+@use 'element-plus/theme-chalk/src/dark/css-vars.scss';

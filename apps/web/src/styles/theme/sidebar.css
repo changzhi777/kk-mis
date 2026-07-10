@@ -1,0 +1,24 @@
+/* 侧边栏全局样式（el-menu 深色覆盖，统一走 token） */
+.app-sidebar {
+  background: var(--c-sidebar-bg);
+  color: var(--c-sidebar-text);
+  transition: width 0.2s ease, background-color 0.2s;
+}
+.app-sidebar .el-menu {
+  background: transparent;
+  border-right: none;
+}
+.app-sidebar .el-menu-item {
+  color: var(--c-sidebar-text);
+}
+.app-sidebar .el-menu-item:hover {
+  background: var(--c-sidebar-item-hover);
+  color: var(--c-sidebar-text-active);
+}
+.app-sidebar .el-menu-item.is-active {
+  color: var(--c-sidebar-text-active);
+  background: var(--c-sidebar-item-active);
+}
+.app-sidebar .el-menu-item.is-active .el-icon {
+  color: var(--c-sidebar-icon-active);
+}

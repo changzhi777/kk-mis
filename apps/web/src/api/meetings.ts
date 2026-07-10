@@ -17,7 +17,7 @@ const api = axios.create({
 })
 
 export const meetingsApi = {
-  /** 上传音频 */
+  /** 上传音频（支持进度回调） */
   async upload(
     audio: File,
     title: string,
@@ -26,6 +26,7 @@ export const meetingsApi = {
       meetingDate?: string
       language?: string
       llmProvider?: string
+      onProgress?: (percent: number) => void
     } = {}
   ): Promise<UploadResponse> {
     const form = new FormData()
@@ -37,7 +38,12 @@ export const meetingsApi = {
     form.append('llm_provider', options.llmProvider || 'glm')
 
     const resp = await api.post<UploadResponse>('/api/v1/meetings/upload', form, {
-      headers: { 'Content-Type': 'multipart/form-data' }
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: (e) => {
+        if (e.total && options.onProgress) {
+          options.onProgress(Math.round((e.loaded / e.total) * 100))
+        }
+      }
     })
     return resp.data
   },

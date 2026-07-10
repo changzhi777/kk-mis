@@ -1,0 +1,82 @@
+// Element Plus SCSS 变量覆盖（编译期，钢蓝商务主题）
+// 官方推荐方式：@forward element-plus 的 var.scss 并覆盖
+@use 'sass:map';
+@use 'sass:math';
+
+@forward 'element-plus/theme-chalk/src/common/var.scss' with (
+  // 主色体系（商务钢蓝 Steel Blue）
+  $colors: (
+    'primary': ('base': #2b5a99),
+    'success': ('base': #16a34a),
+    'warning': ('base': #d97706),
+    'danger':  ('base': #dc2626),
+    'error':   ('base': #dc2626),
+    'info':    ('base': #64748b),
+  ),
+
+  // 文字（冷灰取向，带蓝调）
+  $text-color: (
+    'primary':     #1b2533,
+    'regular':     #3d4e63,
+    'secondary':   #6b7e94,
+    'placeholder': #9aabbf,
+    'disabled':    #bcc8d5,
+  ),
+
+  // 边框
+  $border-color: (
+    '':            #d1dae5,
+    'light':       #e3e9f0,
+    'lighter':     #eef2f7,
+    'extra-light': #f5f7fa,
+    'dark':        #b5c0ce,
+  ),
+
+  // 填充
+  $fill-color: (
+    '':            #eef2f7,
+    'light':       #f5f7fa,
+    'lighter':     #f9fbfd,
+    'extra-light': #fcfdfe,
+    'dark':        #dde4ed,
+    'blank':       #ffffff,
+  ),
+
+  // 背景
+  $bg-color: (
+    '':       #ffffff,
+    'page':   #f5f7fa,
+    'overlay':#ffffff,
+  ),
+
+  // 圆角
+  $border-radius: (
+    'base':   6px,
+    'small':  4px,
+    'round':  20px,
+    'circle': 100%,
+  ),
+
+  // 阴影（3 级）
+  $box-shadow: (
+    '':        0 2px 8px rgba(16, 32, 53, 0.08),
+    'light':   0 1px 2px rgba(16, 32, 53, 0.06),
+    'lighter': 0 1px 1px rgba(16, 32, 53, 0.04),
+    'dark':    0 8px 24px rgba(16, 32, 53, 0.12),
+  ),
+
+  // 字号
+  $font-size: (
+    'extra-large': 20px,
+    'large':       16px,
+    'medium':      14px,
+    'base':        14px,
+    'small':       13px,
+    'extra-small': 12px,
+  ),
+
+  // 字体族
+  $font-family: (
+    '': (-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif),
+  )
+);
