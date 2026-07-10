@@ -38,6 +38,12 @@ class Settings(BaseModel):
     minimax_base_url: str = os.getenv("MINIMAX_BASE_URL", "https://api.minimaxi.com/v1")
     minimax_model: str = os.getenv("MINIMAX_MODEL", "MiniMax-Text-01")
 
+    # oMLX 本地 LLM（OpenAI 兼容协议，跑 MLX 格式模型）
+    omlx_enabled: bool = os.getenv("OMLX_ENABLED", "true").lower() == "true"
+    omlx_base_url: str = os.getenv("OMLX_BASE_URL", "http://localhost:8008/v1")
+    omlx_api_key: str = os.getenv("OMLX_API_KEY", "ak47")
+    omlx_model: str = os.getenv("OMLX_MODEL", "gemma-4-e4b-it-4bit")
+
     # ASR Cluster
     asr_cluster_url: str = os.getenv("ASR_CLUSTER_URL", "http://localhost:9100")
     default_asr_node_url: str = os.getenv(

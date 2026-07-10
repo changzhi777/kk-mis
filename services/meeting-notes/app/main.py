@@ -78,9 +78,16 @@ async def health():
         status="ok",
         version="0.1.0",
         asr_nodes=asr_nodes_count,
-        llm_provider="glm",
+        llm_provider=f"glm(default) | minimax | omlx({settings.omlx_model})",
         database=f"{settings.postgres_host}:{settings.postgres_port}",
     )
+
+
+@app.get("/llm/providers")
+async def llm_providers():
+    """列出所有可用的 LLM 提供商"""
+    from .services.llm import list_providers
+    return {"providers": list_providers()}
 
 
 @app.get("/")

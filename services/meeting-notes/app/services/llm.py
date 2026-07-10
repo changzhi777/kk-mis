@@ -1,4 +1,4 @@
-"""LLM 客户端 - 支持 GLM 和 minimax 双供应商
+"""LLM 客户端 - 支持 GLM / minimax / oMLX 三供应商
 """
 import json
 import logging
@@ -17,11 +17,11 @@ class LLMError(Exception):
 
 
 class LLMClient:
-    """LLM 客户端（统一接口，支持 GLM 和 minimax）"""
+    """LLM 客户端（统一接口，支持 GLM / minimax / oMLX）"""
 
     def __init__(self, provider: str = "glm"):
         """Args:
-        provider: "glm" 或 "minimax"
+        provider: "glm" / "minimax" / "omlx"
         """
         self.provider = provider
         if provider == "glm":
@@ -32,6 +32,10 @@ class LLMClient:
             self.api_key = settings.minimax_api_key
             self.base_url = settings.minimax_base_url
             self.model = settings.minimax_model
+        elif provider == "omlx":
+            self.api_key = settings.omlx_api_key
+            self.base_url = settings.omlx_base_url
+            self.model = settings.omlx_model
         else:
             raise ValueError(f"Unknown provider: {provider}")
 
@@ -63,7 +67,8 @@ class LLMClient:
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
-        if response_format:
+        # oMLX 不一定支持 response_format，跳过
+        if response_format and self.provider != "omlx":
             payload["response_format"] = response_format
 
         url = f"{self.base_url}/chat/completions"
@@ -72,7 +77,7 @@ class LLMClient:
             "Content-Type": "application/json",
         }
 
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        async with httpx.AsyncClient(timeout=180.0) as client:
             try:
                 resp = await client.post(url, json=payload, headers=headers)
                 if resp.status_code != 200:
@@ -100,11 +105,16 @@ class LLMClient:
                 }
             ]
 
+        # oMLX 不支持 response_format
+        response_format = (
+            {"type": "json_object"} if self.provider != "omlx" else None
+        )
+
         response = await self.chat(
             messages=messages,
             temperature=temperature,
             max_tokens=max_tokens,
-            response_format={"type": "json_object"},
+            response_format=response_format,
         )
 
         # 提取 JSON
@@ -171,7 +181,7 @@ async def generate_meeting_summary(
 
     Args:
         transcript: 转写文本
-        provider: LLM 提供商 ("glm" 或 "minimax")
+        provider: LLM 提供商 ("glm" / "minimax" / "omlx")
 
     Returns:
         摘要 dict: {summary, key_points, decisions, action_items, attendees}
@@ -209,3 +219,35 @@ def get_llm_client(provider: str = "glm") -> LLMClient:
     if _llm_client is None or _llm_client.provider != provider:
         _llm_client = LLMClient(provider=provider)
     return _llm_client
+
+
+def list_providers() -> List[Dict[str, Any]]:
+    """列出所有可用的 LLM provider 及其配置状态"""
+    providers = [
+        {
+            "name": "glm",
+            "display_name": "智谱 GLM (云)",
+            "configured": bool(settings.glm_api_key),
+            "model": settings.glm_model,
+            "base_url": settings.glm_base_url,
+            "supports_json_mode": True,
+        },
+        {
+            "name": "minimax",
+            "display_name": "minimax (云)",
+            "configured": bool(settings.minimax_api_key),
+            "model": settings.minimax_model,
+            "base_url": settings.minimax_base_url,
+            "supports_json_mode": True,
+        },
+        {
+            "name": "omlx",
+            "display_name": "oMLX (本地 MLX)",
+            "configured": settings.omlx_enabled and bool(settings.omlx_api_key),
+            "model": settings.omlx_model,
+            "base_url": settings.omlx_base_url,
+            "supports_json_mode": False,
+            "note": "OpenAI 兼容协议，跑 Apple Silicon 优化的 MLX 模型",
+        },
+    ]
+    return providers

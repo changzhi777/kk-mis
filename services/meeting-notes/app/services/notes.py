@@ -17,9 +17,9 @@ logger = logging.getLogger(__name__)
 class MeetingService:
     """会议处理服务 - 编排 ASR + LLM 完整流程"""
 
-    def __init__(self):
+    def __init__(self, llm_provider: str = "glm"):
         self.asr_client = ASRClusterClient()
-        self.llm_provider = "glm"  # 默认使用 GLM
+        self.llm_provider = llm_provider  # glm / minimax / omlx
 
     async def process_meeting(
         self,

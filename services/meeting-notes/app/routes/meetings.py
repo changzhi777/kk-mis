@@ -46,6 +46,7 @@ async def upload_meeting(
     description: Optional[str] = Form(None, description="会议描述"),
     meeting_date: Optional[str] = Form(None, description="会议日期 ISO 格式"),
     language: str = Form(default="zh", description="音频语言"),
+    llm_provider: str = Form(default="glm", description="LLM 提供商: glm/minimax/omlx"),
     session: AsyncSession = Depends(get_session),
 ):
     """上传音频文件，自动触发 ASR + LLM 整理流程"""
@@ -83,6 +84,7 @@ async def upload_meeting(
         meeting.id,
         audio_path,
         language,
+        llm_provider,
     )
 
     return UploadResponse(
@@ -90,11 +92,16 @@ async def upload_meeting(
         filename=audio.filename,
         size_mb=file_size_mb,
         status=MeetingStatus.UPLOADED,
-        message="音频已上传，ASR + LLM 整理任务已启动",
+        message=f"音频已上传，ASR + {llm_provider.upper()} LLM 整理任务已启动",
     )
 
 
-async def _process_meeting_task(meeting_id: int, audio_path: Path, language: str):
+async def _process_meeting_task(
+    meeting_id: int,
+    audio_path: Path,
+    language: str,
+    llm_provider: str = "glm",
+):
     """后台任务：处理会议"""
     from ..db import SessionLocal
 
@@ -104,11 +111,14 @@ async def _process_meeting_task(meeting_id: int, audio_path: Path, language: str
             if not meeting:
                 logger.error(f"Meeting {meeting_id} not found")
                 return
-            service = MeetingService()
+            service = MeetingService(llm_provider=llm_provider)
             updated_meeting = await service.process_meeting(meeting, audio_path, language)
             session.add(updated_meeting)
             await session.commit()
-            logger.info(f"Meeting {meeting_id} processed: status={updated_meeting.status}")
+            logger.info(
+                f"Meeting {meeting_id} processed: "
+                f"status={updated_meeting.status}, llm={llm_provider}"
+            )
         except Exception as e:
             logger.exception(f"Background task failed: {e}")
             meeting = await session.get(Meeting, meeting_id)
