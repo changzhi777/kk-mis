@@ -1,4 +1,6 @@
 """SQLAlchemy 模型聚合"""
+from .agent import Agent, AgentOrder, CommissionRecord, CommissionRule
+from .asset import AssetCard, AssetCardBatch, AssetCardType, AssetRedemption
 from .base import Base
 from .enterprise import (
     Department,
@@ -21,4 +23,12 @@ __all__ = [
     "FinanceAccount",
     "FinanceCategory",
     "FinanceTransaction",
+    "AssetCardType",
+    "AssetCardBatch",
+    "AssetCard",
+    "AssetRedemption",
+    "Agent",
+    "AgentOrder",
+    "CommissionRule",
+    "CommissionRecord",
 ]

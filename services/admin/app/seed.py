@@ -26,6 +26,30 @@ _DEFAULT_MENUS = [
     ("system:role:save", "角色保存", "api", "/api/v1/roles", None, "system:role", 1),
     ("finance:transaction:save", "流水录入", "api", "/api/v1/finance/transactions", None, "finance:transaction", 1),
     ("finance:report:view", "报表查看", "api", "/api/v1/finance/reports", None, "finance:report", 1),
+    # 资产管理菜单
+    ("asset", "资产管理", "menu", "/asset", "Ticket", None, 30),
+    ("asset:type", "卡券类型", "menu", "/asset/type", "Files", "asset", 10),
+    ("asset:batch", "卡券批次", "menu", "/asset/batch", "Box", "asset", 20),
+    ("asset:card", "卡券列表", "menu", "/asset/card", "CreditCard", "asset", 30),
+    ("asset:redemption", "核销", "menu", "/asset/redemption", "CircleCheck", "asset", 40),
+    # 代理销售菜单
+    ("agent", "代理销售", "menu", "/agent", "Connection", None, 40),
+    ("agent:agent", "代理管理", "menu", "/agent/agent", "UserFilled", "agent", 10),
+    ("agent:order", "订单管理", "menu", "/agent/order", "ShoppingCart", "agent", 20),
+    ("agent:commission", "分润报表", "menu", "/agent/commission", "Money", "agent", 30),
+    # 资产/代理 api 权限
+    ("asset:type:list", "类型查询", "api", "/api/v1/asset/card-types", None, "asset:type", 1),
+    ("asset:type:save", "类型保存", "api", "/api/v1/asset/card-types", None, "asset:type", 2),
+    ("asset:batch:list", "批次查询", "api", "/api/v1/asset/batches", None, "asset:batch", 1),
+    ("asset:batch:save", "批次保存", "api", "/api/v1/asset/batches", None, "asset:batch", 2),
+    ("asset:card:list", "卡券查询", "api", "/api/v1/asset/cards", None, "asset:card", 1),
+    ("asset:card:save", "卡券操作", "api", "/api/v1/asset/cards", None, "asset:card", 2),
+    ("agent:list", "代理查询", "api", "/api/v1/agent/agents", None, "agent:agent", 1),
+    ("agent:save", "代理保存", "api", "/api/v1/agent/agents", None, "agent:agent", 2),
+    ("agent:order:list", "订单查询", "api", "/api/v1/agent/orders", None, "agent:order", 1),
+    ("agent:order:save", "订单操作", "api", "/api/v1/agent/orders", None, "agent:order", 2),
+    ("agent:commission:view", "分润查看", "api", "/api/v1/agent/commissions", None, "agent:commission", 1),
+    ("agent:commission:save", "分润结算", "api", "/api/v1/agent/commissions", None, "agent:commission", 2),
 ]
 
 _DEFAULT_CATEGORIES = [

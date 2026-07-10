@@ -1,3 +1,5 @@
+from .agent import agent_routers
+from .asset import asset_routers
 from .auth import router as auth_router
 from .departments import router as departments_router
 from .finance import finance_routers
@@ -13,6 +15,8 @@ all_routers = [
     permissions_router,
     departments_router,
     *finance_routers,
+    *asset_routers,
+    *agent_routers,
 ]
 
 __all__ = ["all_routers"]
