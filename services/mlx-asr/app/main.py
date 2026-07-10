@@ -1,7 +1,9 @@
 """MLX Whisper ASR 服务 - FastAPI 入口"""
 import logging
+import re
 import shutil
 import tempfile
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
@@ -18,16 +20,22 @@ logging.basicConfig(
 )
 logger = logging.getLogger("mlx-asr")
 
-app = FastAPI(
-    title="MLX Whisper ASR",
-    description="本地 Mac MLX Whisper 语音转文字服务（Apple Silicon 优化）",
-    version="1.0.0",
-)
+def _safe_filename(filename: str) -> str:
+    """Sanitize filename: 只保留 ASCII 字母数字 + ._-"""
+    if not filename:
+        return "audio"
+    name = Path(filename).name  # 去除路径部分
+    safe = re.sub(r'[^a-zA-Z0-9._-]', '_', name)
+    if len(safe) > 100:
+        stem = Path(safe).stem[:80]
+        suffix = Path(safe).suffix
+        safe = stem + suffix
+    return safe or "audio"
 
 
-@app.on_event("startup")
-async def startup_event():
-    """启动时预热模型（后台加载）"""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """应用生命周期（替代 deprecated @app.on_event）"""
     logger.info("=" * 60)
     logger.info("MLX Whisper ASR 服务启动中...")
     logger.info(f"  - 模型: {settings.model_name}")
@@ -37,7 +45,7 @@ async def startup_event():
     logger.info(f"  - 最大上传: {settings.max_upload_size_mb} MB")
     logger.info("=" * 60)
 
-    # 启动后台任务预热模型（不阻塞服务启动）
+    # 启动后台任务预热模型
     import asyncio
 
     async def _warmup():
@@ -49,6 +57,16 @@ async def startup_event():
             logger.error(f"❌ 模型预热失败: {e}")
 
     asyncio.create_task(_warmup())
+    yield
+    logger.info("MLX Whisper ASR 服务关闭")
+
+
+app = FastAPI(
+    title="MLX Whisper ASR",
+    description="本地 Mac MLX Whisper 语音转文字服务（Apple Silicon 优化）",
+    version="1.0.0",
+    lifespan=lifespan,
+)
 
 
 def _check_api_key(x_api_key: str = Header(None)):
@@ -116,12 +134,16 @@ async def transcribe(
             detail=f"File too large: {file_size_mb:.1f}MB > {settings.max_upload_size_mb}MB",
         )
 
-    # 保存到临时文件
-    suffix = Path(audio.filename or "audio").suffix or ".tmp"
+    # 保存到临时文件（用 sanitize 后的文件名防路径遍历）
+    safe_name = _safe_filename(audio.filename or "audio")
+    suffix = Path(safe_name).suffix or ".tmp"
     tmp_dir = Path(tempfile.gettempdir()) / "mlx-asr"
     tmp_dir.mkdir(parents=True, exist_ok=True)
 
-    tmp_file = tmp_dir / f"upload_{audio.filename}"
+    # 用 UUID 避免冲突
+    import uuid
+
+    tmp_file = tmp_dir / f"upload_{uuid.uuid4().hex}_{safe_name}"
     try:
         with tmp_file.open("wb") as f:
             shutil.copyfileobj(audio.file, f)

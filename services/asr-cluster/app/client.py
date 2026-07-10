@@ -10,6 +10,7 @@ from .nodes import (
     ASRNode,
     LoadBalancer,
     NodeRegistry,
+    NodeStatus,
     get_balancer,
     get_registry,
 )
@@ -63,7 +64,11 @@ class ASRClient:
         # 标记占用
         node.current_tasks += 1
         if node.current_tasks >= node.max_concurrent:
-            node.status = "busy"
+            node.status = NodeStatus.BUSY
+
+        # 记录调用前的状态（用于异常时恢复）
+        previous_status = NodeStatus.HEALTHY
+        task_succeeded = False
 
         try:
             logger.info(
@@ -97,17 +102,20 @@ class ASRClient:
                 )
                 # 在结果中标记使用的节点
                 result["_node_id"] = node.id
+                task_succeeded = True
                 return result
 
         except Exception as e:
             node.last_error = str(e)[:200]
-            node.status = "degraded"
+            node.status = NodeStatus.DEGRADED
             logger.error(f"Transcribe failed on node {node.id}: {e}")
             raise
         finally:
             # 释放节点
             self.balancer.release(node)
-            node.status = "healthy"
+            # 仅在成功时恢复 healthy；失败状态已设为 degraded（不应覆盖）
+            if task_succeeded and node.status != NodeStatus.DEGRADED:
+                node.status = NodeStatus.HEALTHY
 
     def list_nodes(self) -> list[dict]:
         """列出所有节点状态"""

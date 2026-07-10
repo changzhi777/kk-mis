@@ -1,5 +1,6 @@
 """会议纪要 API 路由"""
 import logging
+import re
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -15,7 +16,7 @@ from fastapi import (
     Query,
     UploadFile,
 )
-from sqlalchemy import desc, select
+from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
@@ -38,13 +39,29 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/meetings", tags=["meetings"])
 
 
+def _safe_filename(filename: str) -> str:
+    """Sanitize filename：只保留字母数字 + ._- ，防止路径遍历"""
+    if not filename:
+        return "audio"
+    # 取 basename（防止 ../）
+    name = Path(filename).name
+    # 替换危险字符为下划线
+    safe = re.sub(r'[^a-zA-Z0-9._-]', '_', name)
+    # 限制长度
+    if len(safe) > 100:
+        stem = Path(safe).stem[:80]
+        suffix = Path(safe).suffix
+        safe = stem + suffix
+    return safe or "audio"
+
+
 @router.post("/upload", response_model=UploadResponse)
 async def upload_meeting(
     background_tasks: BackgroundTasks,
     audio: UploadFile = File(..., description="音频文件 (mp3/wav/m4a/flac)"),
-    title: str = Form(..., description="会议标题"),
-    description: Optional[str] = Form(None, description="会议描述"),
-    meeting_date: Optional[str] = Form(None, description="会议日期 ISO 格式"),
+    title: str = Form(..., description="会议标题", min_length=1, max_length=255),
+    description: Optional[str] = Form(None, description="会议描述", max_length=2000),
+    meeting_date: Optional[str] = Form(None, description="会议日期 ISO 格式 (YYYY-MM-DDTHH:MM:SS)"),
     language: str = Form(default="zh", description="音频语言"),
     llm_provider: str = Form(default="glm", description="LLM 提供商: glm/minimax/omlx"),
     session: AsyncSession = Depends(get_session),
@@ -55,11 +72,27 @@ async def upload_meeting(
     if file_size_mb > settings.max_upload_size_mb:
         raise HTTPException(413, f"文件太大: {file_size_mb:.1f}MB > {settings.max_upload_size_mb}MB")
 
+    # 1.1 校验 LLM provider
+    valid_providers = {"glm", "minimax", "omlx"}
+    if llm_provider not in valid_providers:
+        raise HTTPException(400, f"Invalid llm_provider: {llm_provider}. Must be one of {valid_providers}")
+
+    # 1.2 校验会议日期
+    parsed_meeting_date = None
+    if meeting_date:
+        try:
+            parsed_meeting_date = datetime.fromisoformat(meeting_date)
+        except ValueError:
+            raise HTTPException(400, f"Invalid meeting_date format. Expected ISO format, got: {meeting_date}")
+
+    # 1.3 Sanitize 文件名
+    safe_name = _safe_filename(audio.filename or "audio")
+
     # 2. 保存到磁盘
     upload_dir = Path(settings.upload_dir)
     upload_dir.mkdir(parents=True, exist_ok=True)
-    safe_filename = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{audio.filename}"
-    audio_path = upload_dir / safe_filename
+    stored_filename = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{safe_name}"
+    audio_path = upload_dir / stored_filename
     with audio_path.open("wb") as f:
         shutil.copyfileobj(audio.file, f)
 
@@ -67,8 +100,8 @@ async def upload_meeting(
     meeting = Meeting(
         title=title,
         description=description,
-        meeting_date=datetime.fromisoformat(meeting_date) if meeting_date else None,
-        audio_filename=audio.filename,
+        meeting_date=parsed_meeting_date,
+        audio_filename=audio.filename,  # 保留原文件名用于显示
         audio_path=str(audio_path),
         audio_size_bytes=audio.size,
         language=language,
@@ -148,17 +181,17 @@ async def list_meetings(
     session: AsyncSession = Depends(get_session),
 ):
     """列出会议（分页）"""
-    stmt = select(Meeting).order_by(desc(Meeting.created_at))
+    # 基础查询
+    base_stmt = select(Meeting)
     if status:
-        stmt = stmt.where(Meeting.status == status)
+        base_stmt = base_stmt.where(Meeting.status == status)
 
-    # 计算总数
-    count_stmt = select(Meeting)
-    if status:
-        count_stmt = count_stmt.where(Meeting.status == status)
-    total = len((await session.execute(count_stmt)).scalars().all())
+    # 计算总数（SQL COUNT，不加载数据）
+    count_stmt = select(func.count()).select_from(base_stmt.subquery())
+    total = (await session.execute(count_stmt)).scalar_one()
 
-    # 分页
+    # 分页查询
+    stmt = base_stmt.order_by(desc(Meeting.created_at))
     offset = (page - 1) * page_size
     stmt = stmt.offset(offset).limit(page_size)
     meetings = (await session.execute(stmt)).scalars().all()
