@@ -23,12 +23,22 @@ async def init_db():
     """初始化数据库（创建表）"""
     global engine, SessionLocal
     if engine is None:
-        engine = create_async_engine(
-            settings.database_url,
-            echo=settings.debug,
-            pool_size=10,
-            max_overflow=20,
-        )
+        if settings.db_driver == "sqlite":
+            # SQLite：无连接池，允许跨线程访问（FastAPI 异步多协程）
+            engine = create_async_engine(
+                settings.database_url,
+                echo=settings.debug,
+                connect_args={"check_same_thread": False},
+            )
+        else:
+            # PostgreSQL：连接池 + 心跳探活，防 DB 重启后连接失效（生产）
+            engine = create_async_engine(
+                settings.database_url,
+                echo=settings.debug,
+                pool_size=10,
+                max_overflow=20,
+                pool_pre_ping=True,
+            )
         SessionLocal = async_sessionmaker(
             engine, class_=AsyncSession, expire_on_commit=False
         )
@@ -36,7 +46,7 @@ async def init_db():
     # 创建表
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    logger.info(f"DB initialized: {settings.postgres_host}:{settings.postgres_port}/{settings.postgres_db}")
+    logger.info(f"DB initialized: {settings.database_display}")
 
 
 async def close_db():

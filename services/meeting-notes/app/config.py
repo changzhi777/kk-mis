@@ -38,6 +38,11 @@ class Settings(BaseModel):
     minimax_base_url: str = os.getenv("MINIMAX_BASE_URL", "https://api.minimaxi.com/v1")
     minimax_model: str = os.getenv("MINIMAX_MODEL", "MiniMax-Text-01")
 
+    # API 鉴权（生产必须设置强密钥）
+    api_key: str = os.getenv("KK_MIS_API_KEY", "kk-mis-dev-key-change-in-prod")
+    # CORS 允许的源（生产用逗号分隔列表）
+    cors_origins: str = os.getenv("CORS_ORIGINS", "*")
+
     # oMLX 本地 LLM（OpenAI 兼容协议，跑 MLX 格式模型）
     omlx_enabled: bool = os.getenv("OMLX_ENABLED", "true").lower() == "true"
     omlx_base_url: str = os.getenv("OMLX_BASE_URL", "http://localhost:8008/v1")
@@ -68,6 +73,21 @@ class Settings(BaseModel):
             f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
         )
+
+    @property
+    def database_display(self) -> str:
+        """数据库可读标识（不含密码，用于日志与健康检查）"""
+        if self.db_driver == "sqlite":
+            return f"sqlite://{self.sqlite_path}"
+        return f"postgresql://{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+
+    def llm_model_for(self, provider: str) -> str:
+        """按 provider 返回对应模型名（用于记录实际使用的 LLM）"""
+        return {
+            "glm": self.glm_model,
+            "minimax": self.minimax_model,
+            "omlx": self.omlx_model,
+        }.get(provider, provider)
 
     @property
     def redis_url(self) -> str:

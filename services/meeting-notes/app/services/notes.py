@@ -87,7 +87,7 @@ class MeetingService:
             meeting.key_points = summary.get("key_points", [])
             meeting.decisions = summary.get("decisions", [])
             meeting.action_items = summary.get("action_items", [])
-            meeting.llm_model = settings.glm_model
+            meeting.llm_model = settings.llm_model_for(self.llm_provider)
             meeting.completed_at = datetime.utcnow()
             meeting.status = MeetingStatus.COMPLETED.value
 

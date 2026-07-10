@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
 from ..db import get_session
+from ..security import verify_api_key
 from ..models import Meeting
 from ..schemas import (
     ActionItem,
@@ -36,7 +37,11 @@ from ..services.asr_client import ASRClusterClient
 from ..services.notes import MeetingService
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/api/v1/meetings", tags=["meetings"])
+router = APIRouter(
+    prefix="/api/v1/meetings",
+    tags=["meetings"],
+    dependencies=[Depends(verify_api_key)],
+)
 
 
 def _safe_filename(filename: str) -> str:

@@ -1,29 +1,12 @@
 """ASR 集群客户端封装 - 适配 meeting-notes 主应用
 """
-import asyncio
 import logging
-import sys
 from pathlib import Path
 from typing import Optional
 
-# 导入 asr-cluster 客户端（同级服务）
-# 从 services/meeting-notes/app/services/asr_client.py
-# 到 services/asr-cluster/
-_cluster_path = Path(__file__).parent.parent.parent.parent / "asr-cluster"
-if str(_cluster_path) not in sys.path:
-    sys.path.insert(0, str(_cluster_path))
+import httpx
 
-try:
-    from app.client import ASRClient as _ASRClient
-
-    _HAS_CLUSTER = True
-except ImportError:
-    _HAS_CLUSTER = False
-    _ASRClient = None
-
-import httpx  # noqa: E402
-
-from ..config import settings  # noqa: E402
+from ..config import settings
 
 logger = logging.getLogger(__name__)
 

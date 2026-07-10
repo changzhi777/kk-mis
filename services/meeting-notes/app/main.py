@@ -24,7 +24,7 @@ async def lifespan(app: FastAPI):
     logger.info("=" * 60)
     logger.info("kk-mis 会议纪要主应用启动中...")
     logger.info(f"  - 监听: {settings.host}:{settings.port}")
-    logger.info(f"  - 数据库: {settings.postgres_host}:{settings.postgres_port}")
+    logger.info(f"  - 数据库: {settings.database_display}")
     logger.info(f"  - LLM: {settings.glm_model} (GLM)")
     logger.info(f"  - ASR Cluster: {settings.asr_cluster_url}")
     logger.info("=" * 60)
@@ -46,14 +46,16 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS（开发环境允许所有）
+# CORS 配置
+_cors_list = [o.strip() for o in settings.cors_origins.split(",")] if settings.cors_origins != "*" else ["*"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_list,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
+
 
 # 注册路由
 app.include_router(meetings_router)
@@ -79,7 +81,7 @@ async def health():
         version="0.1.0",
         asr_nodes=asr_nodes_count,
         llm_provider=f"glm(default) | minimax | omlx({settings.omlx_model})",
-        database=f"{settings.postgres_host}:{settings.postgres_port}",
+        database=settings.database_display,
     )
 
 
