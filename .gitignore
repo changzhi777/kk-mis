@@ -97,3 +97,20 @@ apps/*/.env
 services/*/__pycache__/
 services/*/.venv/
 services/*/.env
+
+# 模型权重（每个 ~1-2GB，绝不入仓）
+services/*/models/**/*
+services/*/models/
+*.safetensors
+*.bin
+*.gguf
+*.pt
+*.pth
+
+# 服务日志和临时文件
+services/*/logs/
+services/*/storage/uploads/
+services/*/storage/outputs/
+services/*/storage/*.db
+services/*/storage/*.sqlite
+services/*/.cache/
