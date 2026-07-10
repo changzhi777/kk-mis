@@ -1,5 +1,6 @@
 """财务报表：收支汇总 + 按科目聚合"""
 from datetime import datetime
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
@@ -71,7 +72,3 @@ async def by_category(
             for r in rows
         ]
     }
-
-
-# 占位，避免未导入 Decimal（summary 中用到）
-from decimal import Decimal  # noqa: E402
