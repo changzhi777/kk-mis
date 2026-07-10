@@ -31,7 +31,7 @@ class Settings(BaseModel):
     # GLM LLM
     glm_api_key: str = os.getenv("GLM_API_KEY", "")
     glm_base_url: str = os.getenv("GLM_BASE_URL", "https://open.bigmodel.cn/api/paas/v4")
-    glm_model: str = os.getenv("GLM_MODEL", "glm-4-plus")
+    glm_model: str = os.getenv("GLM_MODEL", "glm-4.7")
 
     # minimax LLM（备用）
     minimax_api_key: str = os.getenv("MINIMAX_API_KEY", "")
