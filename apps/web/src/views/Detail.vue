@@ -44,7 +44,7 @@
                 </el-table-column>
                 <el-table-column label="优先级" width="80">
                   <template #default="{ row }">
-                    <el-tag :type="priorityType(row.priority) || undefined" size="small">{{ row.priority || '-' }}</el-tag>
+                    <el-tag :type="PRIORITY_TYPE[row.priority || ''] || undefined" size="small">{{ row.priority || '-' }}</el-tag>
                   </template>
                 </el-table-column>
               </el-table>
@@ -134,10 +134,6 @@ async function load() {
   } finally {
     loading.value = false
   }
-}
-
-function priorityType(p?: string) {
-  return PRIORITY_TYPE[p || ''] || ''
 }
 
 function formatSegTime(s: number) {
