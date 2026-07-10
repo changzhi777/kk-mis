@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
 from ..db import get_session
-from ..security import verify_api_key
+from ..security import verify_jwt
 from ..models import Meeting
 from ..schemas import (
     ActionItem,
@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(
     prefix="/api/v1/meetings",
     tags=["meetings"],
-    dependencies=[Depends(verify_api_key)],
+    dependencies=[Depends(verify_jwt)],
 )
 
 

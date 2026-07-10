@@ -9,12 +9,35 @@ import type {
   LLMProvider
 } from '@/types'
 
-// API Key 不在前端持有：Vite 的 VITE_* 变量会编译进 bundle，无法保密。
-// 浏览器同源请求经 Nginx /oa/ 反代时，由 Nginx 服务端注入 X-API-Key。
+// 会议纪要接入 admin JWT 统一认证：前端带 Authorization（登录态 token）
+// nginx /oa/api/ 透传 Authorization 到 meeting-notes，后端 verify_jwt 校验
 const api = axios.create({
   baseURL: import.meta.env.BASE_URL.replace(/\/$/, ''),
   timeout: 600000 // 10 分钟（长音频 ASR）
 })
+
+// 请求拦截：带 JWT（动态 import store 避免循环依赖）
+api.interceptors.request.use(async (config) => {
+  const { useUserStore } = await import('@/stores/user')
+  const token = useUserStore().token
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
+// 401 拦截：清登录态并跳登录
+api.interceptors.response.use(
+  (resp) => resp,
+  async (error) => {
+    if (error.response?.status === 401) {
+      const { useUserStore } = await import('@/stores/user')
+      useUserStore().logout()
+      window.location.href = import.meta.env.BASE_URL + 'login'
+    }
+    return Promise.reject(error)
+  }
+)
 
 export const meetingsApi = {
   /** 上传音频（支持进度回调） */

@@ -38,8 +38,11 @@ class Settings(BaseModel):
     minimax_base_url: str = os.getenv("MINIMAX_BASE_URL", "https://api.minimaxi.com/v1")
     minimax_model: str = os.getenv("MINIMAX_MODEL", "MiniMax-Text-01")
 
-    # API 鉴权（生产必须设置强密钥）
+    # API 鉴权（服务间/脚本用）
     api_key: str = os.getenv("KK_MIS_API_KEY", "kk-mis-dev-key-change-in-prod")
+    # JWT 认证（与 admin 服务共用同一 secret，验证 admin 签发的用户 token）
+    jwt_secret: str = os.getenv("JWT_SECRET", "kk-mis-jwt-secret-change-in-prod")
+    jwt_algorithm: str = os.getenv("JWT_ALGORITHM", "HS256")
     # CORS 允许的源（生产用逗号分隔列表）
     cors_origins: str = os.getenv("CORS_ORIGINS", "*")
 
