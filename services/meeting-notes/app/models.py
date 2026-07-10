@@ -21,7 +21,11 @@ class Meeting(Base):
 
     __tablename__ = "meetings"
 
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    id = Column(
+        BigInteger().with_variant(Integer, "sqlite"),
+        primary_key=True,
+        autoincrement=True,
+    )
 
     # 基本信息
     title = Column(String(255), nullable=False, index=True)
