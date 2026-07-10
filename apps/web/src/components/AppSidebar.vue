@@ -34,6 +34,23 @@
           <el-menu-item v-if="userStore.hasPermission('finance:category:save')" index="/finance/category"><el-icon><Files /></el-icon><template #title>收支科目</template></el-menu-item>
           <el-menu-item v-if="userStore.hasPermission('finance:report:view')" index="/finance/report"><el-icon><DataAnalysis /></el-icon><template #title>统计报表</template></el-menu-item>
         </el-sub-menu>
+
+        <!-- 资产管理 -->
+        <el-sub-menu v-if="hasAnyAsset" index="asset">
+          <template #title><el-icon><Ticket /></el-icon><span>资产管理</span></template>
+          <el-menu-item v-if="userStore.hasPermission('asset:type:list')" index="/asset/type"><el-icon><Files /></el-icon><template #title>卡券类型</template></el-menu-item>
+          <el-menu-item v-if="userStore.hasPermission('asset:batch:list')" index="/asset/batch"><el-icon><Box /></el-icon><template #title>卡券批次</template></el-menu-item>
+          <el-menu-item v-if="userStore.hasPermission('asset:card:list')" index="/asset/card"><el-icon><CreditCard /></el-icon><template #title>卡券列表</template></el-menu-item>
+          <el-menu-item v-if="userStore.hasPermission('asset:card:list')" index="/asset/redemption"><el-icon><CircleCheck /></el-icon><template #title>卡券核销</template></el-menu-item>
+        </el-sub-menu>
+
+        <!-- 代理销售 -->
+        <el-sub-menu v-if="hasAnyAgent" index="agent">
+          <template #title><el-icon><Connection /></el-icon><span>代理销售</span></template>
+          <el-menu-item v-if="userStore.hasPermission('agent:list')" index="/agent/agent"><el-icon><UserFilled /></el-icon><template #title>代理管理</template></el-menu-item>
+          <el-menu-item v-if="userStore.hasPermission('agent:order:list')" index="/agent/order"><el-icon><ShoppingCart /></el-icon><template #title>订单管理</template></el-menu-item>
+          <el-menu-item v-if="userStore.hasPermission('agent:commission:view')" index="/agent/commission"><el-icon><Money /></el-icon><template #title>分润报表</template></el-menu-item>
+        </el-sub-menu>
       </el-menu>
     </el-scrollbar>
   </div>
@@ -43,8 +60,9 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import {
-  CreditCard, DataAnalysis, Document, Files, Headset, Key, List, Money,
-  OfficeBuilding, Setting, Upload, User, UserFilled, Wallet,
+  Box, CircleCheck, Connection, CreditCard, DataAnalysis, Document, Files,
+  Headset, Key, List, Money, OfficeBuilding, Setting, ShoppingCart, Ticket,
+  Upload, User, UserFilled, Wallet,
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 
@@ -54,9 +72,13 @@ const userStore = useUserStore()
 
 const systemPerms = ['system:user:list', 'system:role:save', 'system:permission:save', 'system:dept:save']
 const financePerms = ['finance:transaction:save', 'finance:account:save', 'finance:category:save', 'finance:report:view']
+const assetPerms = ['asset:type:list', 'asset:batch:list', 'asset:card:list']
+const agentPerms = ['agent:list', 'agent:order:list', 'agent:commission:view']
 
 const hasAnySystem = computed(() => systemPerms.some((p) => userStore.hasPermission(p)))
 const hasAnyFinance = computed(() => financePerms.some((p) => userStore.hasPermission(p)))
+const hasAnyAsset = computed(() => assetPerms.some((p) => userStore.hasPermission(p)))
+const hasAnyAgent = computed(() => agentPerms.some((p) => userStore.hasPermission(p)))
 </script>
 
 <style scoped>

@@ -87,6 +87,50 @@ const router = createRouter({
       component: () => import('@/views/finance/Report.vue'),
       meta: { title: '统计报表', group: 'finance', permission: 'finance:report:view' },
     },
+    // 资产管理
+    {
+      path: '/asset/type',
+      name: 'asset-type',
+      component: () => import('@/views/asset/CardTypeList.vue'),
+      meta: { title: '卡券类型', group: 'asset', permission: 'asset:type:list' },
+    },
+    {
+      path: '/asset/batch',
+      name: 'asset-batch',
+      component: () => import('@/views/asset/BatchList.vue'),
+      meta: { title: '卡券批次', group: 'asset', permission: 'asset:batch:list' },
+    },
+    {
+      path: '/asset/card',
+      name: 'asset-card',
+      component: () => import('@/views/asset/CardList.vue'),
+      meta: { title: '卡券列表', group: 'asset', permission: 'asset:card:list' },
+    },
+    {
+      path: '/asset/redemption',
+      name: 'asset-redemption',
+      component: () => import('@/views/asset/Redemption.vue'),
+      meta: { title: '卡券核销', group: 'asset', permission: 'asset:card:list' },
+    },
+    // 代理销售
+    {
+      path: '/agent/agent',
+      name: 'agent-agent',
+      component: () => import('@/views/agent/AgentList.vue'),
+      meta: { title: '代理管理', group: 'agent', permission: 'agent:list' },
+    },
+    {
+      path: '/agent/order',
+      name: 'agent-order',
+      component: () => import('@/views/agent/OrderList.vue'),
+      meta: { title: '订单管理', group: 'agent', permission: 'agent:order:list' },
+    },
+    {
+      path: '/agent/commission',
+      name: 'agent-commission',
+      component: () => import('@/views/agent/Commission.vue'),
+      meta: { title: '分润报表', group: 'agent', permission: 'agent:commission:view' },
+    },
   ],
 })
 

@@ -88,6 +88,26 @@ export const adminApi = {
     const { data } = await http.get('/api/v1/finance/reports/by-category', { params })
     return data.items as any[]
   },
+  // 资产专用
+  async generateCards(batchId: number, quantity: number) {
+    const { data } = await http.post(`/api/v1/asset/batches/${batchId}/generate`, { quantity })
+    return data
+  },
+  async redeemCard(card_no: string, method: string, password?: string, remark?: string) {
+    const { data } = await http.post('/api/v1/asset/redemptions/redeem', { card_no, method, password, remark })
+    return data
+  },
+  async issueCard(id: number, holderUserId: number) {
+    await http.post(`/api/v1/asset/cards/${id}/issue`, { holder_user_id: holderUserId })
+  },
+  async voidCard(id: number) {
+    await http.post(`/api/v1/asset/cards/${id}/void`)
+  },
+  // 代理专用
+  async payOrder(id: number) { await http.post(`/api/v1/agent/orders/${id}/pay`) },
+  async completeOrder(id: number) { const { data } = await http.post(`/api/v1/agent/orders/${id}/complete`); return data },
+  async commissionSummary() { const { data } = await http.get('/api/v1/agent/commissions/summary'); return data.items as any[] },
+  async settleCommission(agentId: number) { await http.post(`/api/v1/agent/commissions/settle`, null, { params: { agent_id: agentId } }) },
   // 通用资源 CRUD（企业/财务复用）
   resource<T = any>(path: string) {
     return {
