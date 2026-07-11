@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_session
 from ..deps import get_current_user, get_user_permissions
-from ..models import Role, User, user_roles
+from ..models import Permission, Role, User, user_roles
 from ..schemas.auth import (
     ChangePasswordRequest,
     LoginRequest,
@@ -109,3 +109,51 @@ async def change_password(
 async def logout(user: User = Depends(get_current_user)):
     # JWT 无状态：前端删除 token 即完成登出
     return {"success": True, "message": "已登出"}
+
+
+@router.get("/menus")
+async def my_menus(
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """当前用户可见的菜单树（按权限过滤 menu 类型 permission + 祖先补全 + 建树）"""
+    all_menus = (
+        await session.execute(
+            select(Permission)
+            .where(Permission.type == "menu", Permission.visible.is_(True))
+            .order_by(Permission.sort, Permission.id)
+        )
+    ).scalars().all()
+
+    # 用户可见的 menu code（admin 通配 = 全部）
+    visible_codes = None if user.username == "admin" else set(
+        await get_user_permissions(user.id, session)
+    )
+
+    by_id = {m.id: m for m in all_menus}
+    visible_ids: set[int] = set()
+    for m in all_menus:
+        if visible_codes is None or m.code in visible_codes:
+            visible_ids.add(m.id)
+            # 补全祖先（子有权限 → 父 menu 也显示）
+            pid = m.parent_id
+            while pid and pid in by_id and pid not in visible_ids:
+                visible_ids.add(pid)
+                pid = by_id[pid].parent_id
+
+    menus = [m for m in all_menus if m.id in visible_ids]
+    nodes = {
+        m.id: {
+            "id": m.id, "name": m.name, "path": m.path,
+            "icon": m.icon, "code": m.code, "children": [],
+        }
+        for m in menus
+    }
+    tree = []
+    for m in menus:
+        node = nodes[m.id]
+        if m.parent_id and m.parent_id in nodes:
+            nodes[m.parent_id]["children"].append(node)
+        else:
+            tree.append(node)
+    return tree

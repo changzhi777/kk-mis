@@ -15,6 +15,7 @@ export const useUserStore = defineStore('user', () => {
       return raw ? (JSON.parse(raw) as UserInfo) : null
     })()
   )
+  const menus = ref<any[]>([])
 
   const isLogin = computed(() => !!token.value)
   const roles = computed(() => userInfo.value?.roles || [])
@@ -35,6 +36,19 @@ export const useUserStore = defineStore('user', () => {
     localStorage.setItem(TOKEN_KEY, data.access_token)
     localStorage.setItem(REFRESH_KEY, data.refresh_token)
     localStorage.setItem(USER_KEY, JSON.stringify(data.user))
+    await fetchMenus()
+  }
+
+  async function fetchMenus() {
+    if (!token.value) {
+      menus.value = []
+      return
+    }
+    try {
+      menus.value = await adminApi.fetchMenus()
+    } catch {
+      menus.value = []
+    }
   }
 
   async function fetchMe() {
@@ -53,6 +67,7 @@ export const useUserStore = defineStore('user', () => {
   return {
     token,
     userInfo,
+    menus,
     isLogin,
     roles,
     permissions,
@@ -60,6 +75,7 @@ export const useUserStore = defineStore('user', () => {
     hasPermission,
     login,
     fetchMe,
+    fetchMenus,
     logout,
   }
 })

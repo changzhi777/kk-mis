@@ -60,6 +60,10 @@ export const adminApi = {
     const { data } = await http.get('/api/v1/auth/me')
     return data
   },
+  async fetchMenus(): Promise<any[]> {
+    const { data } = await http.get('/api/v1/auth/menus')
+    return data
+  },
   async logout(): Promise<void> {
     await http.post('/api/v1/auth/logout')
   },

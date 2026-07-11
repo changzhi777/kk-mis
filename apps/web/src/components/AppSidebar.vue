@@ -9,49 +9,36 @@
     </div>
 
     <el-scrollbar class="menu-scroll">
-      <el-menu :default-active="route.path" router :collapse="collapsed" :collapse-transition="false" class="sidebar-menu">
-        <!-- 会议纪要 -->
-        <el-sub-menu index="meeting">
-          <template #title><el-icon><Document /></el-icon><span>会议纪要</span></template>
-          <el-menu-item index="/upload"><el-icon><Upload /></el-icon><template #title>上传会议</template></el-menu-item>
-          <el-menu-item index="/list"><el-icon><List /></el-icon><template #title>会议列表</template></el-menu-item>
-        </el-sub-menu>
-
-        <!-- 企业管理 -->
-        <el-sub-menu v-if="hasAnySystem" index="system">
-          <template #title><el-icon><Setting /></el-icon><span>企业管理</span></template>
-          <el-menu-item v-if="userStore.hasPermission('system:user:list')" index="/system/user"><el-icon><User /></el-icon><template #title>用户管理</template></el-menu-item>
-          <el-menu-item v-if="userStore.hasPermission('system:role:save')" index="/system/role"><el-icon><UserFilled /></el-icon><template #title>角色管理</template></el-menu-item>
-          <el-menu-item v-if="userStore.hasPermission('system:permission:save')" index="/system/permission"><el-icon><Key /></el-icon><template #title>权限菜单</template></el-menu-item>
-          <el-menu-item v-if="userStore.hasPermission('system:dept:save')" index="/system/dept"><el-icon><OfficeBuilding /></el-icon><template #title>部门管理</template></el-menu-item>
-          <el-menu-item v-if="userStore.hasPermission('system:audit:view')" index="/system/audit"><el-icon><Document /></el-icon><template #title>审计日志</template></el-menu-item>
-        </el-sub-menu>
-
-        <!-- 财务管理 -->
-        <el-sub-menu v-if="hasAnyFinance" index="finance">
-          <template #title><el-icon><Wallet /></el-icon><span>财务管理</span></template>
-          <el-menu-item v-if="userStore.hasPermission('finance:transaction:save')" index="/finance/transaction"><el-icon><Money /></el-icon><template #title>收支流水</template></el-menu-item>
-          <el-menu-item v-if="userStore.hasPermission('finance:account:save')" index="/finance/account"><el-icon><CreditCard /></el-icon><template #title>账户管理</template></el-menu-item>
-          <el-menu-item v-if="userStore.hasPermission('finance:category:save')" index="/finance/category"><el-icon><Files /></el-icon><template #title>收支科目</template></el-menu-item>
-          <el-menu-item v-if="userStore.hasPermission('finance:report:view')" index="/finance/report"><el-icon><DataAnalysis /></el-icon><template #title>统计报表</template></el-menu-item>
-        </el-sub-menu>
-
-        <!-- 资产管理 -->
-        <el-sub-menu v-if="hasAnyAsset" index="asset">
-          <template #title><el-icon><Ticket /></el-icon><span>资产管理</span></template>
-          <el-menu-item v-if="userStore.hasPermission('asset:type:list')" index="/asset/type"><el-icon><Files /></el-icon><template #title>卡券类型</template></el-menu-item>
-          <el-menu-item v-if="userStore.hasPermission('asset:batch:list')" index="/asset/batch"><el-icon><Box /></el-icon><template #title>卡券批次</template></el-menu-item>
-          <el-menu-item v-if="userStore.hasPermission('asset:card:list')" index="/asset/card"><el-icon><CreditCard /></el-icon><template #title>卡券列表</template></el-menu-item>
-          <el-menu-item v-if="userStore.hasPermission('asset:card:list')" index="/asset/redemption"><el-icon><CircleCheck /></el-icon><template #title>卡券核销</template></el-menu-item>
-        </el-sub-menu>
-
-        <!-- 代理销售 -->
-        <el-sub-menu v-if="hasAnyAgent" index="agent">
-          <template #title><el-icon><Connection /></el-icon><span>代理销售</span></template>
-          <el-menu-item v-if="userStore.hasPermission('agent:list')" index="/agent/agent"><el-icon><UserFilled /></el-icon><template #title>代理管理</template></el-menu-item>
-          <el-menu-item v-if="userStore.hasPermission('agent:order:list')" index="/agent/order"><el-icon><ShoppingCart /></el-icon><template #title>订单管理</template></el-menu-item>
-          <el-menu-item v-if="userStore.hasPermission('agent:commission:view')" index="/agent/commission"><el-icon><Money /></el-icon><template #title>分润报表</template></el-menu-item>
-        </el-sub-menu>
+      <el-menu
+        :default-active="route.path"
+        router
+        :collapse="collapsed"
+        :collapse-transition="false"
+        :default-openeds="openedIds"
+        class="sidebar-menu"
+      >
+        <template v-for="m in menus" :key="m.id">
+          <!-- 有子菜单：分组 -->
+          <el-sub-menu v-if="m.children && m.children.length" :index="String(m.id)">
+            <template #title>
+              <el-icon v-if="icon(m.icon)"><component :is="icon(m.icon)" /></el-icon>
+              <span>{{ m.name }}</span>
+            </template>
+            <el-menu-item
+              v-for="c in m.children"
+              :key="c.id"
+              :index="c.path"
+            >
+              <el-icon v-if="icon(c.icon)"><component :is="icon(c.icon)" /></el-icon>
+              <template #title>{{ c.name }}</template>
+            </el-menu-item>
+          </el-sub-menu>
+          <!-- 无子菜单：单页 -->
+          <el-menu-item v-else :index="m.path">
+            <el-icon v-if="icon(m.icon)"><component :is="icon(m.icon)" /></el-icon>
+            <template #title>{{ m.name }}</template>
+          </el-menu-item>
+        </template>
       </el-menu>
     </el-scrollbar>
   </div>
@@ -60,26 +47,20 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import {
-  Box, CircleCheck, Connection, CreditCard, DataAnalysis, Document, Files,
-  Headset, Key, List, Money, OfficeBuilding, Setting, ShoppingCart, Ticket,
-  Upload, User, UserFilled, Wallet,
-} from '@element-plus/icons-vue'
+import { Headset } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
+import { useMenuIcon } from '@/composables/useMenuIcon'
 
 defineProps<{ collapsed?: boolean }>()
 const route = useRoute()
 const userStore = useUserStore()
+const icon = useMenuIcon()
 
-const systemPerms = ['system:user:list', 'system:role:save', 'system:permission:save', 'system:dept:save']
-const financePerms = ['finance:transaction:save', 'finance:account:save', 'finance:category:save', 'finance:report:view']
-const assetPerms = ['asset:type:list', 'asset:batch:list', 'asset:card:list']
-const agentPerms = ['agent:list', 'agent:order:list', 'agent:commission:view']
-
-const hasAnySystem = computed(() => systemPerms.some((p) => userStore.hasPermission(p)))
-const hasAnyFinance = computed(() => financePerms.some((p) => userStore.hasPermission(p)))
-const hasAnyAsset = computed(() => assetPerms.some((p) => userStore.hasPermission(p)))
-const hasAnyAgent = computed(() => agentPerms.some((p) => userStore.hasPermission(p)))
+const menus = computed(() => userStore.menus)
+// 默认展开所有分组
+const openedIds = computed(() =>
+  menus.value.filter((m: any) => m.children && m.children.length).map((m: any) => String(m.id))
+)
 </script>
 
 <style scoped>

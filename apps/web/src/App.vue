@@ -82,9 +82,10 @@ async function handleLogout() {
 onMounted(async () => {
   checkMobile()
   window.addEventListener('resize', checkMobile)
-  if (userStore.token && !userStore.userInfo) {
+  if (userStore.token) {
     try {
-      await userStore.fetchMe()
+      if (!userStore.userInfo) await userStore.fetchMe()
+      if (userStore.menus.length === 0) await userStore.fetchMenus()
     } catch {
       userStore.logout()
     }
