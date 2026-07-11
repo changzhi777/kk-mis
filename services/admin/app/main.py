@@ -1,9 +1,11 @@
 """kk-mis 企业管理 + 财务 主应用"""
 import logging
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.requests import Request
 
 from .config import settings
 from .db import close_db, init_db
@@ -57,6 +59,45 @@ app.add_middleware(
 # 注册路由（统一 /admin 前缀，便于 nginx 与会议纪要 /api 分流）
 for _r in all_routers:
     app.include_router(_r, prefix="/admin")
+
+
+@app.middleware("http")
+async def audit_middleware(request: Request, call_next):
+    """审计中间件：记录写操作（POST/PUT/DELETE）"""
+    start = time.time()
+    response = await call_next(request)
+    path = request.url.path
+    if (
+        request.method in ("POST", "PUT", "DELETE")
+        and "/api/v1/" in path
+        and "/auth/" not in path
+    ):
+        try:
+            from .db import SessionLocal
+            from .models import AuditLog
+            from .security import decode_token
+
+            user_id = None
+            auth = request.headers.get("authorization") or ""
+            if auth.lower().startswith("bearer "):
+                payload = decode_token(auth.split(" ", 1)[1])
+                if payload:
+                    user_id = int(payload["sub"])
+            async with SessionLocal() as s:
+                s.add(
+                    AuditLog(
+                        user_id=user_id,
+                        method=request.method,
+                        path=path,
+                        status_code=response.status_code,
+                        ip=request.client.host if request.client else None,
+                        duration_ms=int((time.time() - start) * 1000),
+                    )
+                )
+                await s.commit()
+        except Exception as e:
+            logger.warning(f"audit log failed: {e}")
+    return response
 
 
 @app.get("/health")

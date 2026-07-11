@@ -62,6 +62,12 @@ const router = createRouter({
       component: () => import('@/views/system/DeptList.vue'),
       meta: { title: '部门管理', group: 'system', permission: 'system:dept:save' },
     },
+    {
+      path: '/system/audit',
+      name: 'sys-audit',
+      component: () => import('@/views/system/AuditLog.vue'),
+      meta: { title: '审计日志', group: 'system', permission: 'system:audit:view' },
+    },
     // 财务（阶段5 填充）
     {
       path: '/finance/transaction',

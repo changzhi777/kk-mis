@@ -24,6 +24,7 @@
           <el-menu-item v-if="userStore.hasPermission('system:role:save')" index="/system/role"><el-icon><UserFilled /></el-icon><template #title>角色管理</template></el-menu-item>
           <el-menu-item v-if="userStore.hasPermission('system:permission:save')" index="/system/permission"><el-icon><Key /></el-icon><template #title>权限菜单</template></el-menu-item>
           <el-menu-item v-if="userStore.hasPermission('system:dept:save')" index="/system/dept"><el-icon><OfficeBuilding /></el-icon><template #title>部门管理</template></el-menu-item>
+          <el-menu-item v-if="userStore.hasPermission('system:audit:view')" index="/system/audit"><el-icon><Document /></el-icon><template #title>审计日志</template></el-menu-item>
         </el-sub-menu>
 
         <!-- 财务管理 -->

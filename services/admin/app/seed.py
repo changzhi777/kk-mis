@@ -14,6 +14,7 @@ _DEFAULT_MENUS = [
     ("system:role", "角色管理", "menu", "/system/role", "UserFilled", "system", 20),
     ("system:permission", "权限菜单", "menu", "/system/permission", "Key", "system", 30),
     ("system:dept", "部门管理", "menu", "/system/dept", "OfficeBuilding", "system", 40),
+    ("system:audit", "审计日志", "menu", "/system/audit", "Document", "system", 50),
     # 财务子菜单
     ("finance:transaction", "收支流水", "menu", "/finance/transaction", "Money", "finance", 10),
     ("finance:account", "账户管理", "menu", "/finance/account", "CreditCard", "finance", 20),
@@ -50,6 +51,8 @@ _DEFAULT_MENUS = [
     ("agent:order:save", "订单操作", "api", "/api/v1/agent/orders", None, "agent:order", 2),
     ("agent:commission:view", "分润查看", "api", "/api/v1/agent/commissions", None, "agent:commission", 1),
     ("agent:commission:save", "分润结算", "api", "/api/v1/agent/commissions", None, "agent:commission", 2),
+    # 审计 api
+    ("system:audit:view", "审计查看", "api", "/api/v1/audit", None, "system:audit", 1),
 ]
 
 _DEFAULT_CATEGORIES = [
