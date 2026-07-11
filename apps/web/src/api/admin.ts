@@ -64,6 +64,15 @@ export const adminApi = {
     const { data } = await http.get('/api/v1/auth/menus')
     return data
   },
+  // 公告
+  async publishAnnouncement(id: number) {
+    const { data } = await http.post(`/api/v1/oa/announcements/${id}/publish`)
+    return data
+  },
+  async archiveAnnouncement(id: number) {
+    const { data } = await http.post(`/api/v1/oa/announcements/${id}/archive`)
+    return data
+  },
   async logout(): Promise<void> {
     await http.post('/api/v1/auth/logout')
   },

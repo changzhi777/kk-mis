@@ -2,6 +2,7 @@
 from .agent import Agent, AgentOrder, CommissionRecord, CommissionRule
 from .asset import AssetCard, AssetCardBatch, AssetCardType, AssetRedemption
 from .audit import AuditLog
+from .oa import Announcement
 from .base import Base
 from .enterprise import (
     Department,
@@ -33,4 +34,5 @@ __all__ = [
     "CommissionRule",
     "CommissionRecord",
     "AuditLog",
+    "Announcement",
 ]

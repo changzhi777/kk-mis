@@ -16,7 +16,13 @@ const router = createRouter({
     {
       path: '/',
       name: 'home',
-      redirect: '/list',
+      redirect: '/dashboard',
+    },
+    {
+      path: '/dashboard',
+      name: 'dashboard',
+      component: () => import('@/views/Dashboard.vue'),
+      meta: { title: '工作台' },
     },
     // 会议纪要（现有）
     {
@@ -67,6 +73,12 @@ const router = createRouter({
       name: 'sys-audit',
       component: () => import('@/views/system/AuditLog.vue'),
       meta: { title: '审计日志', group: 'system', permission: 'system:audit:view' },
+    },
+    {
+      path: '/oa/announcement',
+      name: 'oa-announcement',
+      component: () => import('@/views/oa/Announcement.vue'),
+      meta: { title: '公告管理', group: 'oa', permission: 'oa:announcement:save' },
     },
     // 财务（阶段5 填充）
     {

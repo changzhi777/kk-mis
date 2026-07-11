@@ -7,6 +7,8 @@ from .security import hash_password
 
 # 默认菜单/权限：(code, name, type, path, icon, parent_code, sort)
 _DEFAULT_MENUS = [
+    # 工作台（首页）
+    ("dashboard", "工作台", "menu", "/dashboard", "Home", None, 1),
     # 会议纪要（meeting-notes 服务，菜单纳入 admin 统一导航）
     ("meeting", "会议纪要", "menu", None, "Document", None, 5),
     ("meeting:upload", "上传会议", "menu", "/upload", "Upload", "meeting", 10),
@@ -56,6 +58,10 @@ _DEFAULT_MENUS = [
     ("agent:order:save", "订单操作", "api", "/api/v1/agent/orders", None, "agent:order", 2),
     ("agent:commission:view", "分润查看", "api", "/api/v1/agent/commissions", None, "agent:commission", 1),
     ("agent:commission:save", "分润结算", "api", "/api/v1/agent/commissions", None, "agent:commission", 2),
+    # 办公应用（OA）
+    ("oa", "办公应用", "menu", None, "Briefcase", None, 50),
+    ("oa:announcement", "公告管理", "menu", "/oa/announcement", "Bell", "oa", 10),
+    ("oa:announcement:save", "公告发布", "api", "/api/v1/oa/announcements", None, "oa:announcement", 1),
     # 审计 api
     ("system:audit:view", "审计查看", "api", "/api/v1/audit", None, "system:audit", 1),
 ]
