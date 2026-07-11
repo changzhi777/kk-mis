@@ -5,7 +5,7 @@
 import { markRaw, type Component } from 'vue'
 import {
   Bell, Box, Briefcase, CircleCheck, Connection, CreditCard, DataAnalysis,
-  Document, Files, Headset, Home, Key, List, Money, OfficeBuilding, Setting,
+  Document, Files, Headset, House, Key, List, Money, OfficeBuilding, Setting,
   ShoppingCart, Ticket, Upload, User, UserFilled, Wallet,
 } from '@element-plus/icons-vue'
 
@@ -20,7 +20,7 @@ const iconMap: Record<string, Component> = {
   Document: markRaw(Document),
   Files: markRaw(Files),
   Headset: markRaw(Headset),
-  Home: markRaw(Home),
+  House: markRaw(House),
   Key: markRaw(Key),
   List: markRaw(List),
   Money: markRaw(Money),

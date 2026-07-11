@@ -8,7 +8,7 @@ from .security import hash_password
 # 默认菜单/权限：(code, name, type, path, icon, parent_code, sort)
 _DEFAULT_MENUS = [
     # 工作台（首页）
-    ("dashboard", "工作台", "menu", "/dashboard", "Home", None, 1),
+    ("dashboard", "工作台", "menu", "/dashboard", "House", None, 1),
     # 会议纪要（meeting-notes 服务，菜单纳入 admin 统一导航）
     ("meeting", "会议纪要", "menu", None, "Document", None, 5),
     ("meeting:upload", "上传会议", "menu", "/upload", "Upload", "meeting", 10),
