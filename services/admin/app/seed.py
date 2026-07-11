@@ -63,6 +63,7 @@ _DEFAULT_MENUS = [
     ("oa:announcement", "公告管理", "menu", "/oa/announcement", "Bell", "oa", 10),
     ("oa:announcement:save", "公告发布", "api", "/api/v1/oa/announcements", None, "oa:announcement", 1),
     ("oa:leave", "请假申请", "menu", "/oa/leave", "Calendar", "oa", 20),
+    ("oa:expense", "报销申请", "menu", "/oa/expense", "Money", "oa", 25),
     ("oa:approval", "审批中心", "menu", "/oa/approval", "Stamp", "oa", 30),
     ("oa:approval:save", "审批管理", "api", "/api/v1/oa/approvals", None, "oa:approval", 1),
     # 审计 api
@@ -147,6 +148,16 @@ async def seed_initial_data():
         ).scalar_one_or_none():
             s.add(ApprovalFlow(
                 name="请假审批流程", business_type="leave",
+                nodes_config=_json.dumps([{"node": 1, "name": "管理员审批", "approver_type": "user", "approver_id": 1}]),
+                status=True,
+            ))
+            changed = True
+        # 默认报销审批流程
+        if not (
+            await s.execute(select(ApprovalFlow).where(ApprovalFlow.business_type == "expense"))
+        ).scalar_one_or_none():
+            s.add(ApprovalFlow(
+                name="报销审批流程", business_type="expense",
                 nodes_config=_json.dumps([{"node": 1, "name": "管理员审批", "approver_type": "user", "approver_id": 1}]),
                 status=True,
             ))

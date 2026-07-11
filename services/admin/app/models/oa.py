@@ -76,3 +76,18 @@ class LeaveRequest(Base):
     status = Column(String(20), default="pending", nullable=False, index=True)  # pending/approved/rejected
     instance_id = Column(BigInteger, nullable=True)  # 关联审批实例
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ExpenseRequest(Base):
+    """报销申请（走审批，同 leave）"""
+    __tablename__ = "expense_request"
+
+    id = pk()
+    user_id = Column(BigInteger, nullable=False, index=True)
+    amount = Column(Numeric(12, 2), nullable=False)
+    category = Column(String(50), nullable=False)  # travel/office/entertainment/other
+    expense_date = Column(DateTime, nullable=False)
+    reason = Column(String(500), nullable=True)
+    status = Column(String(20), default="pending", nullable=False, index=True)
+    instance_id = Column(BigInteger, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)

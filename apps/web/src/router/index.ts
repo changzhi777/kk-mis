@@ -87,6 +87,12 @@ const router = createRouter({
       meta: { title: '请假申请', group: 'oa' },
     },
     {
+      path: '/oa/expense',
+      name: 'oa-expense',
+      component: () => import('@/views/oa/Expense.vue'),
+      meta: { title: '报销申请', group: 'oa' },
+    },
+    {
       path: '/oa/approval',
       name: 'oa-approval',
       component: () => import('@/views/oa/Approval.vue'),

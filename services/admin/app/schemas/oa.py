@@ -100,3 +100,26 @@ class LeaveOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ===== 报销 =====
+class ExpenseCreate(BaseModel):
+    amount: Decimal = Field(..., gt=0)
+    category: str = Field(..., pattern="^(travel|office|entertainment|other)$")
+    expense_date: datetime
+    reason: Optional[str] = Field(None, max_length=500)
+
+
+class ExpenseOut(BaseModel):
+    id: int
+    user_id: int
+    amount: Decimal
+    category: str
+    expense_date: datetime
+    reason: Optional[str] = None
+    status: str
+    instance_id: Optional[int] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

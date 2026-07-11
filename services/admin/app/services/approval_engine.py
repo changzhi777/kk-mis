@@ -3,7 +3,7 @@ import json
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models import ApprovalFlow, ApprovalInstance, ApprovalRecord, LeaveRequest
+from ..models import ApprovalFlow, ApprovalInstance, ApprovalRecord, ExpenseRequest, LeaveRequest
 
 
 async def create_instance(
@@ -27,6 +27,10 @@ async def _update_business(session: AsyncSession, btype: str, bid: int, status: 
         lr = await session.get(LeaveRequest, bid)
         if lr:
             lr.status = status
+    elif btype == "expense":
+        er = await session.get(ExpenseRequest, bid)
+        if er:
+            er.status = status
 
 
 async def approve(
