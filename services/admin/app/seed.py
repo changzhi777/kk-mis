@@ -7,6 +7,11 @@ from .security import hash_password
 
 # 默认菜单/权限：(code, name, type, path, icon, parent_code, sort)
 _DEFAULT_MENUS = [
+    # 会议纪要（meeting-notes 服务，菜单纳入 admin 统一导航）
+    ("meeting", "会议纪要", "menu", None, "Document", None, 5),
+    ("meeting:upload", "上传会议", "menu", "/upload", "Upload", "meeting", 10),
+    ("meeting:list", "会议列表", "menu", "/list", "List", "meeting", 20),
+    # 企业管理
     ("system", "企业管理", "menu", "/system", "Setting", None, 10),
     ("finance", "财务管理", "menu", "/finance", "Wallet", None, 20),
     # 企业管理子菜单
