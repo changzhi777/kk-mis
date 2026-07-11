@@ -35,13 +35,18 @@
           <el-table-column prop="password" label="密码" width="100" />
         </el-table>
       </div>
-      <template #footer><el-button @click="gdv = false">关闭</el-button><el-button type="primary" :loading="s" @click="doGen">生成</el-button></template>
+      <template #footer>
+        <el-button @click="gdv = false">关闭</el-button>
+        <el-button type="success" :icon="Download" :disabled="!genCards.length" @click="exportCsv">导出 CSV</el-button>
+        <el-button type="primary" :loading="s" @click="doGen">生成</el-button>
+      </template>
     </el-dialog>
   </el-card>
 </template>
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
+import { Download } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import adminApi from '@/api/admin'
 const items = ref<any[]>([]), types = ref<any[]>([]), loading = ref(false), s = ref(false)
@@ -68,5 +73,15 @@ async function doGen() {
   try { const r = await adminApi.generateCards(Number(sessionStorage['genBatchId']), genQty.value); genCards.value = r.cards; ElMessage.success(`生成 ${r.generated} 张`) } catch (e: any) { ElMessage.error(e.response?.data?.detail || '失败') } finally { s.value = false; load() }
 }
 onMounted(load)
+function exportCsv() {
+  if (!genCards.value.length) return
+  const csv = 'card_no,password\n' + genCards.value.map((c) => `${c.card_no},${c.password}`).join('\n')
+  const url = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `cards_batch${sessionStorage['genBatchId']}_${Date.now()}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
 </script>
 <style scoped>.hr { display: flex; justify-content: space-between; align-items: center } .ct { font-weight: 600; color: var(--el-text-color-primary) } .link { color: var(--el-color-primary); margin-left: 8px } .gen-list { margin-top: 12px } .hint { color: var(--el-text-color-secondary); font-size: 12px; margin: 0 0 6px }</style>
