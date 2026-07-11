@@ -80,6 +80,18 @@ const router = createRouter({
       component: () => import('@/views/oa/Announcement.vue'),
       meta: { title: '公告管理', group: 'oa', permission: 'oa:announcement:save' },
     },
+    {
+      path: '/oa/leave',
+      name: 'oa-leave',
+      component: () => import('@/views/oa/Leave.vue'),
+      meta: { title: '请假申请', group: 'oa' },
+    },
+    {
+      path: '/oa/approval',
+      name: 'oa-approval',
+      component: () => import('@/views/oa/Approval.vue'),
+      meta: { title: '审批中心', group: 'oa' },
+    },
     // 财务（阶段5 填充）
     {
       path: '/finance/transaction',

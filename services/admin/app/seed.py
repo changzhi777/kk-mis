@@ -62,6 +62,9 @@ _DEFAULT_MENUS = [
     ("oa", "办公应用", "menu", None, "Briefcase", None, 50),
     ("oa:announcement", "公告管理", "menu", "/oa/announcement", "Bell", "oa", 10),
     ("oa:announcement:save", "公告发布", "api", "/api/v1/oa/announcements", None, "oa:announcement", 1),
+    ("oa:leave", "请假申请", "menu", "/oa/leave", "Calendar", "oa", 20),
+    ("oa:approval", "审批中心", "menu", "/oa/approval", "Stamp", "oa", 30),
+    ("oa:approval:save", "审批管理", "api", "/api/v1/oa/approvals", None, "oa:approval", 1),
     # 审计 api
     ("system:audit:view", "审计查看", "api", "/api/v1/audit", None, "system:audit", 1),
 ]
@@ -134,6 +137,19 @@ async def seed_initial_data():
             s.add(p)
             await s.flush()
             code_to_id[code] = p.id
+            changed = True
+
+        # 默认请假审批流程（单节点：管理员审批）
+        import json as _json
+        from .models import ApprovalFlow
+        if not (
+            await s.execute(select(ApprovalFlow).where(ApprovalFlow.business_type == "leave"))
+        ).scalar_one_or_none():
+            s.add(ApprovalFlow(
+                name="请假审批流程", business_type="leave",
+                nodes_config=_json.dumps([{"node": 1, "name": "管理员审批", "approver_type": "user", "approver_id": 1}]),
+                status=True,
+            ))
             changed = True
 
         # 4. 默认财务科目

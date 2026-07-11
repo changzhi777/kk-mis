@@ -2,7 +2,7 @@
 from .agent import Agent, AgentOrder, CommissionRecord, CommissionRule
 from .asset import AssetCard, AssetCardBatch, AssetCardType, AssetRedemption
 from .audit import AuditLog
-from .oa import Announcement
+from .oa import Announcement, ApprovalFlow, ApprovalInstance, ApprovalRecord, LeaveRequest
 from .base import Base
 from .enterprise import (
     Department,
@@ -35,4 +35,8 @@ __all__ = [
     "CommissionRecord",
     "AuditLog",
     "Announcement",
+    "ApprovalFlow",
+    "ApprovalInstance",
+    "ApprovalRecord",
+    "LeaveRequest",
 ]

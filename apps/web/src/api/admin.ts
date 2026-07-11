@@ -73,6 +73,12 @@ export const adminApi = {
     const { data } = await http.post(`/api/v1/oa/announcements/${id}/archive`)
     return data
   },
+  async approveInstance(id: number, comment?: string) {
+    await http.post(`/api/v1/oa/approvals/instances/${id}/approve`, { comment })
+  },
+  async rejectInstance(id: number, comment: string) {
+    await http.post(`/api/v1/oa/approvals/instances/${id}/reject`, { comment })
+  },
   async logout(): Promise<void> {
     await http.post('/api/v1/auth/logout')
   },
