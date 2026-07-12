@@ -36,6 +36,7 @@
       </el-form>
 
       <p class="hint">默认超管 admin / admin123</p>
+      <p class="to-register">还没有账号？<router-link to="/register">立即注册 →</router-link></p>
     </el-card>
   </div>
 </template>
@@ -123,5 +124,15 @@ async function handleLogin() {
   margin: 16px 0 0;
   font-size: 12px;
   color: var(--el-text-color-secondary);
+}
+.to-register {
+  text-align: center;
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+}
+.to-register a {
+  color: var(--el-color-primary);
+  text-decoration: none;
 }
 </style>

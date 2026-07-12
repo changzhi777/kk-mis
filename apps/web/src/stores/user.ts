@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import adminApi from '@/api/admin'
-import type { UserInfo } from '@/api/admin'
+import type { LoginResult, UserInfo } from '@/api/admin'
 
 const TOKEN_KEY = 'kk-mis-admin-token'
 const REFRESH_KEY = 'kk-mis-admin-refresh'
@@ -29,14 +29,24 @@ export const useUserStore = defineStore('user', () => {
     return permissions.value.includes(code)
   }
 
-  async function login(username: string, password: string) {
-    const data = await adminApi.login(username, password)
+  /** 写入登录态并拉取菜单（login/register 复用，DRY） */
+  async function applyLogin(data: LoginResult) {
     token.value = data.access_token
     userInfo.value = data.user
     localStorage.setItem(TOKEN_KEY, data.access_token)
     localStorage.setItem(REFRESH_KEY, data.refresh_token)
     localStorage.setItem(USER_KEY, JSON.stringify(data.user))
     await fetchMenus()
+  }
+
+  async function login(username: string, password: string) {
+    await applyLogin(await adminApi.login(username, password))
+  }
+
+  async function register(payload: {
+    username: string; password: string; name: string; phone?: string; email?: string
+  }) {
+    await applyLogin(await adminApi.register(payload))
   }
 
   async function fetchMenus() {
@@ -59,6 +69,7 @@ export const useUserStore = defineStore('user', () => {
   function logout() {
     token.value = ''
     userInfo.value = null
+    menus.value = []
     localStorage.removeItem(TOKEN_KEY)
     localStorage.removeItem(REFRESH_KEY)
     localStorage.removeItem(USER_KEY)
@@ -74,6 +85,7 @@ export const useUserStore = defineStore('user', () => {
     isSuperAdmin,
     hasPermission,
     login,
+    register,
     fetchMe,
     fetchMenus,
     logout,

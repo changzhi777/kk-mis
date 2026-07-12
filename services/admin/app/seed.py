@@ -2,7 +2,7 @@
 from sqlalchemy import select
 
 from .config import settings
-from .models import FinanceCategory, Permission, Role, User, user_roles
+from .models import FinanceCategory, Permission, Role, User, role_permissions, user_roles
 from .security import hash_password
 
 # 默认菜单/权限：(code, name, type, path, icon, parent_code, sort)
@@ -80,6 +80,13 @@ _DEFAULT_CATEGORIES = [
     ("expense", "办公费用", "expense_office"),
     ("expense", "差旅费用", "expense_travel"),
     ("expense", "其他支出", "expense_other"),
+]
+
+# 普通员工角色（注册用户默认）可见的菜单权限码
+_STAFF_PERM_CODES = [
+    "dashboard", "meeting", "meeting:list",
+    "oa", "oa:announcement", "oa:leave", "oa:expense",
+    "oa:report", "oa:approval", "oa:attendance",
 ]
 
 
@@ -165,6 +172,33 @@ async def seed_initial_data():
                 status=True,
             ))
             changed = True
+
+        # 普通员工角色（注册用户默认绑定，基础菜单权限）
+        staff = (
+            await s.execute(select(Role).where(Role.code == "staff"))
+        ).scalar_one_or_none()
+        if not staff:
+            staff = Role(code="staff", name="普通员工", data_scope="self", status=True, sort=100)
+            s.add(staff)
+            await s.flush()
+            changed = True
+        for code in _STAFF_PERM_CODES:
+            pid = code_to_id.get(code)
+            if not pid:
+                continue
+            linked = (
+                await s.execute(
+                    select(role_permissions).where(
+                        (role_permissions.c.role_id == staff.id)
+                        & (role_permissions.c.permission_id == pid)
+                    )
+                )
+            ).first()
+            if not linked:
+                await s.execute(
+                    role_permissions.insert().values(role_id=staff.id, permission_id=pid)
+                )
+                changed = True
 
         # 4. 默认财务科目
         for ctype, name, code in _DEFAULT_CATEGORIES:

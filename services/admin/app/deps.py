@@ -39,7 +39,8 @@ async def get_user_permissions(user_id: int, session: AsyncSession) -> List[str]
         .where(user_roles.c.user_id == user_id)
     )
     result = await session.execute(stmt)
-    return list({r[0] for r in result.scalars().all()})
+    # scalars().all() 已是标量(code 字符串)，直接去重，勿再取 r[0]（会变首字符）
+    return list(set(result.scalars().all()))
 
 
 def require_permission(code: str):

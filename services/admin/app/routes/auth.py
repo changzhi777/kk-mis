@@ -12,6 +12,7 @@ from ..schemas.auth import (
     ChangePasswordRequest,
     LoginRequest,
     RefreshRequest,
+    RegisterRequest,
     TokenResponse,
     UserInfo,
 )
@@ -62,6 +63,38 @@ async def login(req: LoginRequest, session: AsyncSession = Depends(get_session))
         raise HTTPException(status_code=401, detail="用户名或密码错误")
     if not user.status:
         raise HTTPException(status_code=403, detail="用户已禁用")
+    user.last_login = datetime.utcnow()
+    await session.commit()
+    access = create_access_token(user.id)
+    refresh = create_refresh_token(user.id)
+    info = await _user_info(user, session)
+    return TokenResponse(access_token=access, refresh_token=refresh, user=info)
+
+
+@router.post("/register", response_model=TokenResponse)
+async def register(req: RegisterRequest, session: AsyncSession = Depends(get_session)):
+    """自助注册：创建用户并绑定 staff 角色（基础菜单权限），注册即登录"""
+    exists = (
+        await session.execute(select(User).where(User.username == req.username))
+    ).scalar_one_or_none()
+    if exists:
+        raise HTTPException(status_code=409, detail="用户名已存在")
+    user = User(
+        username=req.username,
+        password_hash=hash_password(req.password),
+        name=req.name,
+        phone=req.phone,
+        email=req.email,
+        status=True,
+    )
+    session.add(user)
+    await session.flush()
+    # 绑定普通员工角色（基础菜单权限）
+    staff = (
+        await session.execute(select(Role).where(Role.code == "staff"))
+    ).scalar_one_or_none()
+    if staff:
+        await session.execute(user_roles.insert().values(user_id=user.id, role_id=staff.id))
     user.last_login = datetime.utcnow()
     await session.commit()
     access = create_access_token(user.id)

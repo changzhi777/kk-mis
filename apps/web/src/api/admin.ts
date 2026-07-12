@@ -56,6 +56,12 @@ export const adminApi = {
     const { data } = await http.post('/api/v1/auth/login', { username, password })
     return data
   },
+  async register(payload: {
+    username: string; password: string; name: string; phone?: string; email?: string
+  }): Promise<LoginResult> {
+    const { data } = await http.post('/api/v1/auth/register', payload)
+    return data
+  },
   async me(): Promise<UserInfo> {
     const { data } = await http.get('/api/v1/auth/me')
     return data

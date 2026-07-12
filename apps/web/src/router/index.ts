@@ -14,6 +14,12 @@ const router = createRouter({
       meta: { public: true, title: '登录' },
     },
     {
+      path: '/register',
+      name: 'register',
+      component: () => import('@/views/Register.vue'),
+      meta: { public: true, title: '注册' },
+    },
+    {
       path: '/',
       name: 'home',
       redirect: '/dashboard',
