@@ -42,6 +42,10 @@ async def approve(
         return None, "实例不存在或已结束"
     flow = await session.get(ApprovalFlow, inst.flow_id)
     nodes = json.loads(flow.nodes_config)
+    # 校验：当前节点必须由该用户审批（防越权审批他人单据）
+    node = nodes[inst.current_node] if inst.current_node < len(nodes) else None
+    if node and node.get("approver_type") == "user" and approver_id != node.get("approver_id"):
+        return None, "您不是当前节点的审批人"
     session.add(
         ApprovalRecord(
             instance_id=inst.id, node=inst.current_node,
@@ -62,6 +66,11 @@ async def reject(
     inst = await session.get(ApprovalInstance, instance_id)
     if not inst or inst.status != "pending":
         return None, "实例不存在或已结束"
+    flow = await session.get(ApprovalFlow, inst.flow_id)
+    nodes = json.loads(flow.nodes_config)
+    node = nodes[inst.current_node] if inst.current_node < len(nodes) else None
+    if node and node.get("approver_type") == "user" and approver_id != node.get("approver_id"):
+        return None, "您不是当前节点的审批人"
     session.add(
         ApprovalRecord(
             instance_id=inst.id, node=inst.current_node,

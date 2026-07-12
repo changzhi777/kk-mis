@@ -1,4 +1,4 @@
-"""OA 办公关键路径测试：公告发布 + 请假/报销审批 + 工作汇报 + 考勤打卡"""
+"""OA 办公关键路径测试：公告发布 + 请假/报销审批 + 工作汇报 + 考勤 + 越权防护"""
 
 
 def test_announcement_publish(client, auth_header):
@@ -30,14 +30,13 @@ def test_leave_approval_chain(client, auth_header):
     assert lr["status"] == "pending"
     iid = lr["instance_id"]
     assert iid is not None
-    # 审批通过
+    # admin 是流程审批人 → 通过
     ap = client.post(
         f"/admin/api/v1/oa/approvals/instances/{iid}/approve",
         json={"comment": "同意"},
         headers=h,
     ).json()
     assert ap["status"] == "approved"
-    # 请假业务状态由引擎同步
     cur = client.get(f"/admin/api/v1/oa/leaves/{lr['id']}", headers=h).json()
     assert cur["status"] == "approved"
 
@@ -82,10 +81,8 @@ def test_report_create_and_read(client, auth_header):
         headers=h,
     ).json()
     assert r["status"] == "submitted"
-    # 列表含新建
     items = client.get("/admin/api/v1/oa/reports", headers=h).json()["items"]
     assert any(i["id"] == r["id"] for i in items)
-    # 标记已读
     rd = client.put(f"/admin/api/v1/oa/reports/{r['id']}/read", headers=h).json()
     assert rd["status"] == "read"
 
@@ -98,16 +95,50 @@ def test_attendance_clock_flow(client, auth_header):
     # 重复上班打卡拒绝
     dup = client.post("/admin/api/v1/oa/attendance/clock-in", headers=h)
     assert dup.status_code == 400
-    # 今日状态
     today = client.get("/admin/api/v1/oa/attendance/today", headers=h).json()
     assert today["clock_in"] is not None
-    # 下班打卡 + 工时计算
     co = client.post("/admin/api/v1/oa/attendance/clock-out", headers=h).json()
     assert co["clock_out"] is not None
     assert co["work_hours"] is not None
-    # 月统计
     stats = client.get("/admin/api/v1/oa/attendance/stats", headers=h).json()
     assert stats["total"] >= 1
-    # 月明细
     me = client.get("/admin/api/v1/oa/attendance/me", headers=h).json()["items"]
     assert len(me) >= 1
+
+
+def test_non_approver_cannot_approve(client, auth_header):
+    """非审批人不能 approve 他人单据（防越权审批）"""
+    # 注册普通员工
+    r = client.post(
+        "/admin/api/v1/auth/register",
+        json={"username": "staff_a", "password": "test1234", "name": "员工A"},
+    ).json()
+    staff_h = {"Authorization": f"Bearer {r['access_token']}"}
+    # 员工请假（触发审批实例，流程审批人是 admin）
+    lr = client.post(
+        "/admin/api/v1/oa/leaves",
+        json={
+            "type": "personal",
+            "start_date": "2026-08-01T00:00:00",
+            "end_date": "2026-08-02T00:00:00",
+            "days": 1,
+            "reason": "测试",
+        },
+        headers=staff_h,
+    ).json()
+    iid = lr["instance_id"]
+    # 员工尝试审批自己的请假 → 被拦 400
+    ap = client.post(
+        f"/admin/api/v1/oa/approvals/instances/{iid}/approve",
+        json={"comment": "越权"},
+        headers=staff_h,
+    )
+    assert ap.status_code == 400
+    assert "审批人" in ap.json()["detail"]
+    # admin 审批 → 通过
+    admin_ap = client.post(
+        f"/admin/api/v1/oa/approvals/instances/{iid}/approve",
+        json={"comment": "通过"},
+        headers=auth_header,
+    ).json()
+    assert admin_ap["status"] == "approved"
