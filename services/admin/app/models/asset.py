@@ -1,4 +1,5 @@
 """资产模型：卡券类型/批次/卡券实例/核销记录"""
+from ..utils import utcnow
 from datetime import datetime
 from decimal import Decimal
 
@@ -20,7 +21,7 @@ class AssetCardType(Base):
     fields_config = Column(String(500), nullable=True)  # JSON 自定义字段
     status = Column(Boolean, default=True)
     remark = Column(String(200), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
 
 class AssetCardBatch(Base):
@@ -35,7 +36,7 @@ class AssetCardBatch(Base):
     status = Column(String(20), default="draft")  # draft/active/closed
     valid_until = Column(DateTime, nullable=True)  # 批次有效期
     created_by = Column(BigInteger, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
 
 class AssetCard(Base):
@@ -54,7 +55,7 @@ class AssetCard(Base):
     issued_at = Column(DateTime, nullable=True)
     used_at = Column(DateTime, nullable=True)
     valid_until = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
 
 class AssetRedemption(Base):
@@ -67,4 +68,4 @@ class AssetRedemption(Base):
     method = Column(String(20), nullable=False)  # scan/manual/batch/self
     amount = Column(Numeric(12, 2), default=Decimal("0"))
     remark = Column(String(200), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)

@@ -1,4 +1,5 @@
 """卡券核销（scan 扫码 / manual 手动 / batch 批量 / self 自助验密码）"""
+from ...utils import utcnow
 from datetime import datetime
 from typing import List
 
@@ -23,7 +24,7 @@ async def _redeem_one(card_no: str, method: str, password, remark, user: User, s
         return {"card_no": card_no, "ok": False, "error": "卡券不存在"}
     if card.status != "issued":
         return {"card_no": card_no, "ok": False, "error": f"状态 {card.status} 不可核销"}
-    if card.valid_until and card.valid_until < datetime.utcnow():
+    if card.valid_until and card.valid_until < utcnow():
         card.status = "expired"
         return {"card_no": card_no, "ok": False, "error": "已过期"}
     # self 自助核销必须验密码
@@ -31,7 +32,7 @@ async def _redeem_one(card_no: str, method: str, password, remark, user: User, s
         if not password or not verify_password(password, card.password_hash):
             return {"card_no": card_no, "ok": False, "error": "密码错误"}
     card.status = "used"
-    card.used_at = datetime.utcnow()
+    card.used_at = utcnow()
     r = AssetRedemption(
         card_id=card.id, redeemer_id=user.id, method=method,
         amount=card.face_value, remark=remark,

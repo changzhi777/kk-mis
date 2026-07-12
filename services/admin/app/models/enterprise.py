@@ -1,4 +1,5 @@
 """企业管理模型：部门/用户/角色/权限（RBAC）"""
+from ..utils import utcnow
 from datetime import datetime
 
 from sqlalchemy import (
@@ -48,7 +49,7 @@ class Department(Base):
     leader = Column(String(50), nullable=True)
     sort = Column(Integer, default=0)
     status = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
 
 class User(Base):
@@ -63,7 +64,7 @@ class User(Base):
     dept_id = Column(BigInteger, nullable=True, index=True)
     status = Column(Boolean, default=True)
     last_login = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
 
 class Role(Base):
@@ -77,7 +78,7 @@ class Role(Base):
     # 数据权限范围：all=全部 / dept=本部门 / self=本人
     data_scope = Column(String(20), default="all")
     remark = Column(String(200), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
 
 class Permission(Base):
@@ -94,4 +95,4 @@ class Permission(Base):
     icon = Column(String(50), nullable=True)
     sort = Column(Integer, default=0)
     visible = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)

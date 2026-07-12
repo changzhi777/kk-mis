@@ -1,4 +1,5 @@
 """代理模型：代理/订单/分润规则/分润记录（3级分销记账）"""
+from ..utils import utcnow
 from datetime import datetime
 from decimal import Decimal
 
@@ -19,7 +20,7 @@ class Agent(Base):
     parent_id = Column(BigInteger, nullable=True, index=True)  # 上级代理 id（自引用）
     commission_rate = Column(Numeric(5, 4), default=Decimal("0"))  # 个人分润率（0.2=20%）
     status = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
 
 class AgentOrder(Base):
@@ -34,7 +35,7 @@ class AgentOrder(Base):
     total = Column(Numeric(12, 2), nullable=False)
     status = Column(String(20), default="pending")  # pending/paid/completed/cancelled
     remark = Column(String(200), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
 
 class CommissionRule(Base):
@@ -45,7 +46,7 @@ class CommissionRule(Base):
     level = Column(Integer, nullable=False, unique=True)  # 1 / 2
     rate = Column(Numeric(5, 4), nullable=False)  # 0.20 / 0.10
     status = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
 
 class CommissionRecord(Base):
@@ -59,4 +60,4 @@ class CommissionRecord(Base):
     amount = Column(Numeric(12, 2), nullable=False)
     status = Column(String(20), default="pending")  # pending/settled
     settled_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)

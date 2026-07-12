@@ -1,4 +1,5 @@
 """财务模型：账户/科目/流水"""
+from ..utils import utcnow
 from datetime import datetime
 from decimal import Decimal
 
@@ -18,7 +19,7 @@ class FinanceAccount(Base):
     balance = Column(Numeric(12, 2), default=Decimal("0"))
     status = Column(Boolean, default=True)
     sort = Column(Integer, default=0)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
 
 class FinanceCategory(Base):
@@ -32,7 +33,7 @@ class FinanceCategory(Base):
     code = Column(String(50), nullable=True, index=True)
     sort = Column(Integer, default=0)
     status = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
 
 class FinanceTransaction(Base):
@@ -46,6 +47,6 @@ class FinanceTransaction(Base):
     category_id = Column(BigInteger, ForeignKey("finance_categories.id"), nullable=False, index=True)
     dept_id = Column(BigInteger, nullable=True, index=True)
     user_id = Column(BigInteger, nullable=True, index=True)
-    transaction_date = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    transaction_date = Column(DateTime, nullable=False, default=utcnow, index=True)
     remark = Column(String(500), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)

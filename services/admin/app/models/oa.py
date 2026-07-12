@@ -1,4 +1,5 @@
 """OA 办公模型：公告 + 审批工作流 + 请假 + 报销 + 工作汇报 + 考勤"""
+from ..utils import utcnow
 from datetime import datetime
 
 from sqlalchemy import (
@@ -30,7 +31,7 @@ class Announcement(Base):
     scope = Column(String(20), default="all")  # all / dept
     dept_id = Column(BigInteger, nullable=True)
     status = Column(String(20), default="draft", nullable=False, index=True)  # draft/published/archived
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
     published_at = Column(DateTime, nullable=True)
 
 
@@ -43,7 +44,7 @@ class ApprovalFlow(Base):
     business_type = Column(String(20), nullable=False, index=True)  # leave / expense
     nodes_config = Column(Text, nullable=False)  # JSON: [{node, name, approver_type:leader|user, approver_id?}]
     status = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
 
 class ApprovalInstance(Base):
@@ -57,7 +58,7 @@ class ApprovalInstance(Base):
     business_id = Column(BigInteger, nullable=False, index=True)  # 关联 leave_request.id 等
     status = Column(String(20), default="pending", nullable=False, index=True)  # pending/approved/rejected
     current_node = Column(Integer, default=0)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
 
 class ApprovalRecord(Base):
@@ -70,7 +71,7 @@ class ApprovalRecord(Base):
     approver_id = Column(BigInteger, nullable=False)
     action = Column(String(20), nullable=False)  # approve/reject/delegate
     comment = Column(String(500), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
 
 class LeaveRequest(Base):
@@ -86,7 +87,7 @@ class LeaveRequest(Base):
     reason = Column(String(500), nullable=True)
     status = Column(String(20), default="pending", nullable=False, index=True)  # pending/approved/rejected
     instance_id = Column(BigInteger, nullable=True)  # 关联审批实例
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
 
 class ExpenseRequest(Base):
@@ -101,7 +102,7 @@ class ExpenseRequest(Base):
     reason = Column(String(500), nullable=True)
     status = Column(String(20), default="pending", nullable=False, index=True)
     instance_id = Column(BigInteger, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
 
 class WorkReport(Base):
@@ -117,8 +118,8 @@ class WorkReport(Base):
     plan_next = Column(Text, nullable=True)  # 下期计划
     problems = Column(Text, nullable=True)  # 遇到的问题
     status = Column(String(20), default="submitted", nullable=False, index=True)  # submitted/read
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
 
 class Attendance(Base):
@@ -135,4 +136,4 @@ class Attendance(Base):
     clock_out = Column(DateTime, nullable=True)
     status = Column(String(20), default="normal", nullable=False)  # normal/late/early
     work_hours = Column(Numeric(4, 1), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)

@@ -1,4 +1,5 @@
 """卡券列表/发放/作废"""
+from ...utils import utcnow
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -58,7 +59,7 @@ async def issue_card(
         raise HTTPException(400, f"当前状态 {c.status} 不可发放")
     c.holder_user_id = req.holder_user_id
     c.status = "issued"
-    c.issued_at = datetime.utcnow()
+    c.issued_at = utcnow()
     await session.commit()
     return {"success": True}
 

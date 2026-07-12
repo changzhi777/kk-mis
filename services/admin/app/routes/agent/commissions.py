@@ -1,4 +1,5 @@
 """分润规则 + 记录 + 结算"""
+from ...utils import utcnow
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query
@@ -104,6 +105,6 @@ async def settle(
     ).scalars().all()
     for r in records:
         r.status = "settled"
-        r.settled_at = datetime.utcnow()
+        r.settled_at = utcnow()
     await session.commit()
     return {"success": True, "settled": len(records)}

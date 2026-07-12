@@ -1,4 +1,5 @@
 """公告管理（CRUD + 发布/归档 + scope 定向）"""
+from ...utils import utcnow
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -77,7 +78,7 @@ async def publish_announcement(
     if not a:
         raise HTTPException(404, "公告不存在")
     a.status = "published"
-    a.published_at = datetime.utcnow()
+    a.published_at = utcnow()
     await session.commit()
     await session.refresh(a)
     return AnnouncementOut.model_validate(a)

@@ -1,4 +1,5 @@
 """认证路由：登录/当前用户/刷新token/改密/登出"""
+from ..utils import utcnow
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -63,7 +64,7 @@ async def login(req: LoginRequest, session: AsyncSession = Depends(get_session))
         raise HTTPException(status_code=401, detail="用户名或密码错误")
     if not user.status:
         raise HTTPException(status_code=403, detail="用户已禁用")
-    user.last_login = datetime.utcnow()
+    user.last_login = utcnow()
     await session.commit()
     access = create_access_token(user.id)
     refresh = create_refresh_token(user.id)
@@ -95,7 +96,7 @@ async def register(req: RegisterRequest, session: AsyncSession = Depends(get_ses
     ).scalar_one_or_none()
     if staff:
         await session.execute(user_roles.insert().values(user_id=user.id, role_id=staff.id))
-    user.last_login = datetime.utcnow()
+    user.last_login = utcnow()
     await session.commit()
     access = create_access_token(user.id)
     refresh = create_refresh_token(user.id)

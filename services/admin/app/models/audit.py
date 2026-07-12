@@ -1,4 +1,5 @@
 """审计日志模型"""
+from ..utils import utcnow
 from datetime import datetime
 
 from sqlalchemy import BigInteger, Column, DateTime, Integer, String
@@ -19,4 +20,4 @@ class AuditLog(Base):
     status_code = Column(Integer, nullable=True)
     ip = Column(String(50), nullable=True)
     duration_ms = Column(Integer, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=utcnow, index=True)
