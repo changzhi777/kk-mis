@@ -1,6 +1,6 @@
 <template>
   <el-card shadow="never">
-    <template #header><div class="hr"><span class="ct">报销申请</span><el-button type="primary" :icon="Plus" @click="open()">申请报销</el-button></div></template>
+    <template #header><div class="hr"><span class="ct">报销申请</span><div class="hdr-actions"><el-button :icon="Download" @click="exportCsv">导出</el-button><el-button type="primary" :icon="Plus" @click="open()">申请报销</el-button></div></div></template>
     <el-table :data="items" v-loading="loading" stripe>
       <el-table-column label="金额" width="120"><template #default="{ row }"><span class="amount">¥{{ Number(row.amount).toFixed(2) }}</span></template></el-table-column>
       <el-table-column label="类别" width="90"><template #default="{ row }">{{ catText(row.category) }}</template></el-table-column>
@@ -22,7 +22,7 @@
 </template>
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { Plus } from '@element-plus/icons-vue'
+import { Download, Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import adminApi from '@/api/admin'
 const items = ref<any[]>([]), loading = ref(false), dv = ref(false), s = ref(false)
@@ -38,6 +38,15 @@ async function save() {
   try { await api.create(form); ElMessage.success('已提交，等待审批'); dv.value = false; load() }
   catch (e: any) { ElMessage.error(e.response?.data?.detail || '失败') } finally { s.value = false }
 }
+async function exportCsv() {
+  try {
+    await adminApi.downloadCsv('/api/v1/oa/expenses/export')
+    ElMessage.success('已导出')
+  } catch {
+    ElMessage.error('导出失败')
+  }
+}
+
 onMounted(load)
 </script>
-<style scoped>.hr { display: flex; justify-content: space-between; align-items: center } .ct { font-weight: 600; color: var(--el-text-color-primary) } .amount { font-weight: 600; color: var(--el-color-danger) }</style>
+<style scoped>.hr { display: flex; justify-content: space-between; align-items: center } .hdr-actions { display: flex; gap: 8px; align-items: center } .ct { font-weight: 600; color: var(--el-text-color-primary) } .amount { font-weight: 600; color: var(--el-color-danger) }</style>

@@ -1,5 +1,8 @@
 """报销：提交触发审批 + 列表/详情"""
+import io
+
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,6 +11,7 @@ from ...deps import get_current_user
 from ...models import ApprovalFlow, ExpenseRequest, User
 from ...schemas.oa import ExpenseCreate, ExpenseOut
 from ...services.approval_engine import create_instance
+from ...utils import to_csv
 
 router = APIRouter(prefix="/api/v1/oa/expenses", tags=["oa-expense"])
 
@@ -52,6 +56,39 @@ async def list_expenses(
         )
     ).scalars().all()
     return {"items": [ExpenseOut.model_validate(e).model_dump() for e in ers]}
+
+
+@router.get("/export")
+async def export_expenses(
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """导出我的报销为 CSV"""
+    ers = (
+        await session.execute(
+            select(ExpenseRequest)
+            .where(ExpenseRequest.user_id == user.id)
+            .order_by(ExpenseRequest.id.desc())
+        )
+    ).scalars().all()
+    cat_map = {"travel": "差旅", "office": "办公", "entertainment": "招待", "other": "其他"}
+    status_map = {"pending": "审批中", "approved": "已批准", "rejected": "已驳回"}
+    rows = [{
+        "id": e.id,
+        "date": e.expense_date,
+        "category": cat_map.get(e.category, e.category),
+        "amount": e.amount,
+        "reason": e.reason or "",
+        "status": status_map.get(e.status, e.status),
+    } for e in ers]
+    cols = [("id", "ID"), ("date", "日期"), ("category", "类别"),
+            ("amount", "金额"), ("reason", "事由"), ("status", "状态")]
+    data = to_csv(rows, cols)
+    return StreamingResponse(
+        io.BytesIO(data),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="expenses.csv"'},
+    )
 
 
 @router.get("/{eid}", response_model=ExpenseOut)

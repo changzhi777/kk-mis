@@ -3,7 +3,10 @@
     <template #header>
       <div class="header-row">
         <span class="card-title">用户管理</span>
-        <el-button type="primary" :icon="Plus" @click="openDialog()">新增用户</el-button>
+        <div>
+          <el-button :icon="Download" @click="exportCsv">导出</el-button>
+          <el-button type="primary" :icon="Plus" @click="openDialog()">新增用户</el-button>
+        </div>
       </div>
     </template>
 
@@ -64,7 +67,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { Plus } from '@element-plus/icons-vue'
+import { Download, Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import adminApi from '@/api/admin'
 
@@ -146,6 +149,15 @@ async function resetPwd(row: any) {
   })
   await adminApi.resetUserPassword(row.id, value)
   ElMessage.success('密码已重置')
+}
+
+async function exportCsv() {
+  try {
+    await adminApi.downloadCsv('/api/v1/users/export')
+    ElMessage.success('已导出')
+  } catch {
+    ElMessage.error('导出失败')
+  }
 }
 
 onMounted(load)

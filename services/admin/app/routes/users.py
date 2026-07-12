@@ -1,12 +1,16 @@
 """用户管理路由"""
+import io
+
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_session
 from ..deps import require_permission
-from ..models import User, user_roles
+from ..models import Role, User, user_roles
 from ..schemas.enterprise import UserCreate, UserOut, UserResetPassword, UserUpdate
+from ..utils import to_csv
 from ..security import hash_password
 
 router = APIRouter(prefix="/api/v1/users", tags=["users"])
@@ -52,6 +56,42 @@ async def list_users(
         "page": page,
         "page_size": page_size,
     }
+
+
+@router.get("/export")
+async def export_users(
+    keyword: str = Query(None),
+    session: AsyncSession = Depends(get_session),
+    _=Depends(require_permission("system:user:list")),
+):
+    """导出用户列表为 CSV"""
+    stmt = select(User)
+    if keyword:
+        stmt = stmt.where(or_(User.username.contains(keyword), User.name.contains(keyword)))
+    users = (await session.execute(stmt.order_by(User.id.desc()))).scalars().all()
+    # 预加载角色名 + 用户-角色映射（避免 N+1）
+    role_names = {r.id: r.name for r in (await session.execute(select(Role))).scalars().all()}
+    ur_rows = (await session.execute(select(user_roles.c.user_id, user_roles.c.role_id))).all()
+    user_roles_map: dict[int, list[int]] = {}
+    for uid, rid in ur_rows:
+        user_roles_map.setdefault(uid, []).append(rid)
+    rows = [{
+        "id": u.id,
+        "username": u.username,
+        "name": u.name or "",
+        "email": u.email or "",
+        "phone": u.phone or "",
+        "roles": "、".join(role_names.get(rid, "") for rid in user_roles_map.get(u.id, [])),
+        "status": "启用" if u.status else "禁用",
+    } for u in users]
+    cols = [("id", "ID"), ("username", "用户名"), ("name", "姓名"),
+            ("email", "邮箱"), ("phone", "手机"), ("roles", "角色"), ("status", "状态")]
+    data = to_csv(rows, cols)
+    return StreamingResponse(
+        io.BytesIO(data),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="users.csv"'},
+    )
 
 
 @router.post("", response_model=UserOut)
