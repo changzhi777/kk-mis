@@ -3,7 +3,10 @@
     <template #header>
       <div class="header-row">
         <span class="card-title">收支流水</span>
-        <el-button type="primary" :icon="Plus" @click="openDialog()">录入流水</el-button>
+        <div>
+          <el-button :icon="Download" :loading="exporting" @click="exportCsv">导出</el-button>
+          <el-button type="primary" :icon="Plus" @click="openDialog()">录入流水</el-button>
+        </div>
       </div>
     </template>
 
@@ -90,7 +93,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { Plus } from '@element-plus/icons-vue'
+import { Download, Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import adminApi from '@/api/admin'
 import TimeText from '@/components/TimeText.vue'
@@ -101,6 +104,7 @@ const categories = ref<any[]>([])
 const loading = ref(false)
 const dialogVisible = ref(false)
 const saving = ref(false)
+const exporting = ref(false)
 const page = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
@@ -176,6 +180,20 @@ async function remove(id: number) {
     load()
   } catch (e: any) {
     ElMessage.error(e.response?.data?.detail || '删除失败')
+  }
+}
+
+async function exportCsv() {
+  exporting.value = true
+  try {
+    const params: any = {}
+    if (filter.type) params.type = filter.type
+    await adminApi.downloadCsv('/api/v1/finance/transactions/export', params)
+    ElMessage.success('已导出')
+  } catch {
+    ElMessage.error('导出失败')
+  } finally {
+    exporting.value = false
   }
 }
 

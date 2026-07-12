@@ -42,7 +42,10 @@
       <template #header>
         <div class="hr">
           <span class="ct">考勤记录</span>
-          <el-date-picker v-model="month" type="month" value-format="YYYY-MM" @change="load" style="width:140px" />
+          <div class="hdr-actions">
+            <el-button :icon="Download" size="small" @click="exportCsv">导出</el-button>
+            <el-date-picker v-model="month" type="month" value-format="YYYY-MM" @change="load" style="width:140px" />
+          </div>
         </div>
       </template>
       <el-table :data="items" v-loading="loading" stripe>
@@ -58,6 +61,7 @@
 </template>
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
+import { Download } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import adminApi from '@/api/admin'
 
@@ -110,6 +114,15 @@ async function doClockOut() {
   } finally { lo.value = false }
 }
 
+async function exportCsv() {
+  try {
+    await adminApi.downloadCsv('/api/v1/oa/attendance/export', { month: month.value })
+    ElMessage.success('已导出')
+  } catch {
+    ElMessage.error('导出失败')
+  }
+}
+
 onMounted(() => { loadToday(); load() })
 </script>
 <style scoped>
@@ -127,5 +140,6 @@ onMounted(() => { loadToday(); load() })
 .stats .n.danger { color: var(--el-color-danger) }
 .stats .l { font-size: 13px; color: var(--el-text-color-secondary); margin-top: 4px }
 .hr { display: flex; justify-content: space-between; align-items: center }
+.hdr-actions { display: flex; gap: 8px; align-items: center }
 .ct { font-weight: 600; color: var(--el-text-color-primary) }
 </style>

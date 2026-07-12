@@ -142,6 +142,20 @@ export const adminApi = {
   async clockOut() { const { data } = await http.post('/api/v1/oa/attendance/clock-out'); return data },
   async attendanceMe(month: string) { const { data } = await http.get('/api/v1/oa/attendance/me', { params: { month } }); return data.items as any[] },
   async attendanceStats(month: string) { const { data } = await http.get('/api/v1/oa/attendance/stats', { params: { month } }); return data as any },
+  // CSV 导出下载（通用）
+  async downloadCsv(path: string, params?: any) {
+    const r = await http.get(path, { params, responseType: 'blob' })
+    const cd = (r.headers['content-disposition'] || '') as string
+    const filename = (cd.match(/filename="?([^";]+)"?/) || [, 'export.csv'])[1]
+    const url = URL.createObjectURL(new Blob([r.data]))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = decodeURIComponent(filename)
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  },
   // 通用资源 CRUD（企业/财务复用）
   resource<T = any>(path: string) {
     return {

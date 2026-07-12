@@ -1,12 +1,15 @@
 """收支流水路由（录入/删除时联动账户余额）"""
+import io
 from datetime import datetime
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...db import get_session
+from ...utils import to_csv
 from ...deps import require_permission
 from ...models import FinanceAccount, FinanceCategory, FinanceTransaction, User
 from ...schemas.finance import TransactionCreate, TransactionOut
@@ -79,6 +82,53 @@ async def list_transactions(
         "items": [TransactionOut.model_validate(t).model_dump() for t in items],
         "total": total, "page": page, "page_size": page_size,
     }
+
+
+@router.get("/export")
+async def export_transactions(
+    type: str = Query(None),
+    account_id: int = Query(None),
+    category_id: int = Query(None),
+    start_date: datetime = Query(None),
+    end_date: datetime = Query(None),
+    session: AsyncSession = Depends(get_session),
+    _=Depends(require_permission("finance:transaction:save")),
+):
+    """导出流水为 CSV（UTF-8 BOM，Excel 双击不乱码）"""
+    stmt = select(FinanceTransaction)
+    if type:
+        stmt = stmt.where(FinanceTransaction.type == type)
+    if account_id:
+        stmt = stmt.where(FinanceTransaction.account_id == account_id)
+    if category_id:
+        stmt = stmt.where(FinanceTransaction.category_id == category_id)
+    if start_date:
+        stmt = stmt.where(FinanceTransaction.transaction_date >= start_date)
+    if end_date:
+        stmt = stmt.where(FinanceTransaction.transaction_date <= end_date)
+    items = (
+        await session.execute(stmt.order_by(FinanceTransaction.transaction_date.desc()))
+    ).scalars().all()
+    # 预加载账户/科目名（避免 N+1）
+    accs = {a.id: a.name for a in (await session.execute(select(FinanceAccount))).scalars().all()}
+    cats = {c.id: c.name for c in (await session.execute(select(FinanceCategory))).scalars().all()}
+    rows = [{
+        "id": t.id,
+        "date": t.transaction_date,
+        "type": "收入" if t.type == "income" else "支出",
+        "amount": t.amount,
+        "account": accs.get(t.account_id, ""),
+        "category": cats.get(t.category_id, ""),
+        "remark": t.remark or "",
+    } for t in items]
+    cols = [("id", "ID"), ("date", "日期"), ("type", "类型"), ("amount", "金额"),
+            ("account", "账户"), ("category", "科目"), ("remark", "备注")]
+    data = to_csv(rows, cols)
+    return StreamingResponse(
+        io.BytesIO(data),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="transactions.csv"'},
+    )
 
 
 @router.delete("/{tid}")

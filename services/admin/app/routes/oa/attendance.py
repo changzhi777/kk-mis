@@ -4,10 +4,12 @@
 - 09:00 后打卡 → late（迟到）
 - 18:00 前下班 → early（早退）
 """
+import io
 from datetime import date, datetime
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy import extract, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,6 +17,7 @@ from ...db import get_session
 from ...deps import get_current_user
 from ...models import Attendance, User
 from ...schemas.oa import AttendanceOut
+from ...utils import to_csv
 
 router = APIRouter(prefix="/api/v1/oa/attendance", tags=["oa-attendance"])
 
@@ -154,6 +157,43 @@ async def my_stats(
         "early": early,
         "work_hours_sum": float(hours),
     }
+
+
+@router.get("/export")
+async def export_attendance(
+    month: str | None = None,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """导出我的考勤为 CSV"""
+    y, m = _parse_month(month)
+    rs = (
+        await session.execute(
+            select(Attendance)
+            .where(
+                Attendance.user_id == user.id,
+                extract("year", Attendance.date) == y,
+                extract("month", Attendance.date) == m,
+            )
+            .order_by(Attendance.date.desc())
+        )
+    ).scalars().all()
+    status_map = {"normal": "正常", "late": "迟到", "early": "早退"}
+    rows = [{
+        "date": a.date,
+        "clock_in": a.clock_in,
+        "clock_out": a.clock_out,
+        "work_hours": a.work_hours,
+        "status": status_map.get(a.status, a.status),
+    } for a in rs]
+    cols = [("date", "日期"), ("clock_in", "上班"), ("clock_out", "下班"),
+            ("work_hours", "工时(h)"), ("status", "状态")]
+    data = to_csv(rows, cols)
+    return StreamingResponse(
+        io.BytesIO(data),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="attendance_{y:04d}-{m:02d}.csv"'},
+    )
 
 
 def _parse_month(month: str | None) -> tuple[int, int]:
