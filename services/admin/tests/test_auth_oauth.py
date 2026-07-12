@@ -47,6 +47,20 @@ def test_oauth_repeat_reuses_account(client):
     assert "#t=" in r2.headers["location"]
 
 
+def test_oauth_new_user_gets_staff_role(client):
+    """OAuth 新建用户自动绑 staff 角色（基础菜单权限，与注册一致）"""
+    from urllib.parse import parse_qs, urlparse
+
+    r = _oauth_callback(client, uid="55555", email="staff@gh.com")
+    fragment = urlparse(r.headers["location"]).fragment
+    token = parse_qs(fragment)["t"][0]
+    me = client.get(
+        "/admin/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
+    ).json()
+    assert "staff" in me["roles"]
+    assert "dashboard" in me["permissions"]
+
+
 def test_oauth_unknown_provider(client):
     """未知 provider → authorize 返回 404"""
     r = client.get("/admin/api/v1/auth/oauth/facebook/authorize")

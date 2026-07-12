@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
 from ..db import get_session
-from ..models import SocialAccount, User
+from ..models import Role, SocialAccount, User, user_roles
 from ..oauth.base import SocialUserInfo
 from ..oauth.registry import get_connector
 from ..security import create_access_token, create_refresh_token, hash_password
@@ -130,6 +130,12 @@ async def _resolve_user(session: AsyncSession, provider: str, info: SocialUserIn
     )
     session.add(user)
     await session.flush()
+    # 绑定 staff 角色（基础菜单权限，与注册向导一致）
+    staff = (
+        await session.execute(select(Role).where(Role.code == "staff"))
+    ).scalar_one_or_none()
+    if staff:
+        await session.execute(user_roles.insert().values(user_id=user.id, role_id=staff.id))
     await _bind_social(session, user.id, provider, info)
     await session.commit()
     return user
