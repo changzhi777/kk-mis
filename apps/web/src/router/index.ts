@@ -20,6 +20,12 @@ const router = createRouter({
       meta: { public: true, title: '注册' },
     },
     {
+      path: '/oauth/callback',
+      name: 'oauth-callback',
+      component: () => import('@/views/oauth/Callback.vue'),
+      meta: { public: true, title: '登录中' },
+    },
+    {
       path: '/',
       name: 'home',
       redirect: '/dashboard',

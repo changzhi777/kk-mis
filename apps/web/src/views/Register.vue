@@ -59,6 +59,8 @@
       </div>
 
       <p class="to-login">已有账号？<router-link to="/login">直接登录</router-link></p>
+      <el-divider>第三方登录</el-divider>
+      <el-button class="oauth-btn" @click="oauthLogin('github')">GitHub 登录</el-button>
     </el-card>
   </div>
 </template>
@@ -126,6 +128,10 @@ async function submit() {
     loading.value = false
   }
 }
+
+function oauthLogin(provider: string) {
+  window.location.href = import.meta.env.BASE_URL + 'admin/api/v1/auth/oauth/' + provider + '/authorize'
+}
 </script>
 
 <style scoped>
@@ -185,4 +191,5 @@ async function submit() {
   color: var(--el-color-primary);
   text-decoration: none;
 }
+.oauth-btn { width: 100%; margin-top: 4px; }
 </style>

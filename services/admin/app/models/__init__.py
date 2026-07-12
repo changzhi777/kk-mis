@@ -12,6 +12,7 @@ from .oa import (
     LeaveRequest,
     WorkReport,
 )
+from .social import SocialAccount
 from .base import Base
 from .enterprise import (
     Department,
@@ -51,4 +52,5 @@ __all__ = [
     "ExpenseRequest",
     "WorkReport",
     "Attendance",
+    "SocialAccount",
 ]

@@ -49,6 +49,16 @@ export const useUserStore = defineStore('user', () => {
     await applyLogin(await adminApi.register(payload))
   }
 
+  /** OAuth 回调用：只有 token，需 fetchMe 拉 user */
+  async function applyOAuthLogin(accessToken: string, refreshToken: string) {
+    token.value = accessToken
+    userInfo.value = null
+    localStorage.setItem(TOKEN_KEY, accessToken)
+    localStorage.setItem(REFRESH_KEY, refreshToken)
+    await fetchMe()
+    await fetchMenus()
+  }
+
   async function fetchMenus() {
     if (!token.value) {
       menus.value = []
@@ -86,6 +96,7 @@ export const useUserStore = defineStore('user', () => {
     hasPermission,
     login,
     register,
+    applyOAuthLogin,
     fetchMe,
     fetchMenus,
     logout,

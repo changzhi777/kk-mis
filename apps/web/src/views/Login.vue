@@ -37,6 +37,8 @@
 
       <p class="hint">默认超管 admin / admin123</p>
       <p class="to-register">还没有账号？<router-link to="/register">立即注册 →</router-link></p>
+      <el-divider>第三方登录</el-divider>
+      <el-button class="oauth-btn" @click="oauthLogin('github')">GitHub 登录</el-button>
     </el-card>
   </div>
 </template>
@@ -76,6 +78,10 @@ async function handleLogin() {
       loading.value = false
     }
   })
+}
+
+function oauthLogin(provider: string) {
+  window.location.href = import.meta.env.BASE_URL + 'admin/api/v1/auth/oauth/' + provider + '/authorize'
 }
 </script>
 
@@ -135,4 +141,5 @@ async function handleLogin() {
   color: var(--el-color-primary);
   text-decoration: none;
 }
+.oauth-btn { width: 100%; margin-top: 4px; }
 </style>

@@ -39,6 +39,15 @@ class Settings(BaseModel):
     init_admin_username: str = os.getenv("INIT_ADMIN_USERNAME", "admin")
     init_admin_password: str = os.getenv("INIT_ADMIN_PASSWORD", "admin123")
 
+    # OAuth 第三方登录（GitHub 先打通，微信预留）
+    github_client_id: str = os.getenv("GITHUB_CLIENT_ID", "")
+    github_client_secret: str = os.getenv("GITHUB_CLIENT_SECRET", "")
+    github_redirect_uri: str = os.getenv("GITHUB_REDIRECT_URI", "")
+    wechat_client_id: str = os.getenv("WECHAT_CLIENT_ID", "")
+    wechat_client_secret: str = os.getenv("WECHAT_CLIENT_SECRET", "")
+    wechat_redirect_uri: str = os.getenv("WECHAT_REDIRECT_URI", "")
+    oauth_frontend_redirect: str = os.getenv("OAUTH_FRONTEND_REDIRECT", "/oa/oauth/callback")
+
     # CORS
     cors_origins: str = os.getenv("CORS_ORIGINS", "*")
 
