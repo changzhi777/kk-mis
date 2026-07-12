@@ -127,6 +127,15 @@ export const adminApi = {
   async completeOrder(id: number) { const { data } = await http.post(`/api/v1/agent/orders/${id}/complete`); return data },
   async commissionSummary() { const { data } = await http.get('/api/v1/agent/commissions/summary'); return data.items as any[] },
   async settleCommission(agentId: number) { await http.post(`/api/v1/agent/commissions/settle`, null, { params: { agent_id: agentId } }) },
+  // 工作汇报
+  async allReports() { const { data } = await http.get('/api/v1/oa/reports/all'); return data.items as any[] },
+  async readReport(id: number) { await http.put(`/api/v1/oa/reports/${id}/read`) },
+  // 考勤打卡
+  async attendanceToday() { const { data } = await http.get('/api/v1/oa/attendance/today'); return data },
+  async clockIn() { const { data } = await http.post('/api/v1/oa/attendance/clock-in'); return data },
+  async clockOut() { const { data } = await http.post('/api/v1/oa/attendance/clock-out'); return data },
+  async attendanceMe(month: string) { const { data } = await http.get('/api/v1/oa/attendance/me', { params: { month } }); return data.items as any[] },
+  async attendanceStats(month: string) { const { data } = await http.get('/api/v1/oa/attendance/stats', { params: { month } }); return data as any },
   // 通用资源 CRUD（企业/财务复用）
   resource<T = any>(path: string) {
     return {

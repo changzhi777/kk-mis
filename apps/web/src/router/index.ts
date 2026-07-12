@@ -98,6 +98,18 @@ const router = createRouter({
       component: () => import('@/views/oa/Approval.vue'),
       meta: { title: '审批中心', group: 'oa' },
     },
+    {
+      path: '/oa/report',
+      name: 'oa-report',
+      component: () => import('@/views/oa/Report.vue'),
+      meta: { title: '工作汇报', group: 'oa' },
+    },
+    {
+      path: '/oa/attendance',
+      name: 'oa-attendance',
+      component: () => import('@/views/oa/Attendance.vue'),
+      meta: { title: '考勤打卡', group: 'oa' },
+    },
     // 财务（阶段5 填充）
     {
       path: '/finance/transaction',

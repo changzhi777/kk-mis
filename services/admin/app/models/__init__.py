@@ -2,7 +2,16 @@
 from .agent import Agent, AgentOrder, CommissionRecord, CommissionRule
 from .asset import AssetCard, AssetCardBatch, AssetCardType, AssetRedemption
 from .audit import AuditLog
-from .oa import Announcement, ApprovalFlow, ApprovalInstance, ApprovalRecord, ExpenseRequest, LeaveRequest
+from .oa import (
+    Announcement,
+    ApprovalFlow,
+    ApprovalInstance,
+    ApprovalRecord,
+    Attendance,
+    ExpenseRequest,
+    LeaveRequest,
+    WorkReport,
+)
 from .base import Base
 from .enterprise import (
     Department,
@@ -40,4 +49,6 @@ __all__ = [
     "ApprovalRecord",
     "LeaveRequest",
     "ExpenseRequest",
+    "WorkReport",
+    "Attendance",
 ]

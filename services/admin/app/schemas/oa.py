@@ -1,7 +1,7 @@
-"""OA Schema：公告 + 审批 + 请假"""
+"""OA Schema：公告 + 审批 + 请假 + 报销 + 工作汇报 + 考勤"""
 from datetime import datetime
 from decimal import Decimal
-from typing import List, Optional
+from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -120,6 +120,46 @@ class ExpenseOut(BaseModel):
     status: str
     instance_id: Optional[int] = None
     created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ===== 工作汇报 =====
+class ReportCreate(BaseModel):
+    type: str = Field(..., pattern="^(daily|weekly|monthly)$")
+    period_start: datetime
+    period_end: datetime
+    content: str = Field(..., min_length=1)
+    plan_next: Optional[str] = None
+    problems: Optional[str] = None
+
+
+class ReportOut(BaseModel):
+    id: int
+    user_id: int
+    type: str
+    period_start: datetime
+    period_end: datetime
+    content: str
+    plan_next: Optional[str] = None
+    problems: Optional[str] = None
+    status: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ===== 考勤 =====
+class AttendanceOut(BaseModel):
+    id: int
+    user_id: int
+    date: datetime
+    clock_in: Optional[datetime] = None
+    clock_out: Optional[datetime] = None
+    status: str
+    work_hours: Optional[Decimal] = None
 
     class Config:
         from_attributes = True

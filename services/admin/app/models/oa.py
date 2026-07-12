@@ -1,8 +1,19 @@
-"""OA 办公模型：公告 + 审批工作流 + 请假"""
+"""OA 办公模型：公告 + 审批工作流 + 请假 + 报销 + 工作汇报 + 考勤"""
 from datetime import datetime
-from decimal import Decimal
 
-from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    Column,
+    Date,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+)
 
 from .base import Base
 from .enterprise import pk
@@ -90,4 +101,38 @@ class ExpenseRequest(Base):
     reason = Column(String(500), nullable=True)
     status = Column(String(20), default="pending", nullable=False, index=True)
     instance_id = Column(BigInteger, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class WorkReport(Base):
+    """工作汇报（日报/周报/月报，独立模块不走审批）"""
+    __tablename__ = "work_report"
+
+    id = pk()
+    user_id = Column(BigInteger, nullable=False, index=True)
+    type = Column(String(20), nullable=False)  # daily/weekly/monthly
+    period_start = Column(DateTime, nullable=False)
+    period_end = Column(DateTime, nullable=False)
+    content = Column(Text, nullable=False)  # 本期完成
+    plan_next = Column(Text, nullable=True)  # 下期计划
+    problems = Column(Text, nullable=True)  # 遇到的问题
+    status = Column(String(20), default="submitted", nullable=False, index=True)  # submitted/read
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class Attendance(Base):
+    """考勤打卡（user_id + date 唯一约束，防重复打卡）"""
+    __tablename__ = "attendance"
+    __table_args__ = (
+        UniqueConstraint("user_id", "date", name="uq_attendance_user_date"),
+    )
+
+    id = pk()
+    user_id = Column(BigInteger, nullable=False, index=True)
+    date = Column(Date, nullable=False, index=True)
+    clock_in = Column(DateTime, nullable=True)
+    clock_out = Column(DateTime, nullable=True)
+    status = Column(String(20), default="normal", nullable=False)  # normal/late/early
+    work_hours = Column(Numeric(4, 1), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
