@@ -60,15 +60,15 @@ _DEFAULT_MENUS = [
     ("agent:commission:save", "分润结算", "api", "/api/v1/agent/commissions", None, "agent:commission", 2),
     # 办公应用（OA）
     ("oa", "办公应用", "menu", None, "Briefcase", None, 50),
-    ("oa:announcement", "公告管理", "menu", "/oa/announcement", "Bell", "oa", 10),
+    ("oa:announcement", "公告管理", "menu", "/announcement", "Bell", "oa", 10),
     ("oa:announcement:save", "公告发布", "api", "/api/v1/oa/announcements", None, "oa:announcement", 1),
-    ("oa:leave", "请假申请", "menu", "/oa/leave", "Calendar", "oa", 20),
-    ("oa:expense", "报销申请", "menu", "/oa/expense", "Money", "oa", 25),
-    ("oa:approval", "审批中心", "menu", "/oa/approval", "Stamp", "oa", 30),
+    ("oa:leave", "请假申请", "menu", "/leave", "Calendar", "oa", 20),
+    ("oa:expense", "报销申请", "menu", "/expense", "Money", "oa", 25),
+    ("oa:approval", "审批中心", "menu", "/approval", "Stamp", "oa", 30),
     ("oa:approval:save", "审批管理", "api", "/api/v1/oa/approvals", None, "oa:approval", 1),
-    ("oa:report", "工作汇报", "menu", "/oa/report", "Edit", "oa", 28),
+    ("oa:report", "工作汇报", "menu", "/report", "Edit", "oa", 28),
     ("oa:report:view", "汇报查阅", "api", "/api/v1/oa/reports", None, "oa:report", 1),
-    ("oa:attendance", "考勤打卡", "menu", "/oa/attendance", "Clock", "oa", 35),
+    ("oa:attendance", "考勤打卡", "menu", "/attendance", "Clock", "oa", 35),
     # 审计 api
     ("system:audit:view", "审计查看", "api", "/api/v1/audit", None, "system:audit", 1),
 ]
