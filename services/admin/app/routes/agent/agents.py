@@ -1,5 +1,8 @@
-"""代理管理（3级树，二级必须挂一级）"""
-from fastapi import APIRouter, Depends, HTTPException
+"""代理管理（区域代理，按 region_code 平级划分销售范围）
+
+决策 #3 重构（2026-07-13）：从 3 级分销改为区域代理。
+"""
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,12 +16,15 @@ router = APIRouter(prefix="/api/v1/agent/agents", tags=["agent"])
 
 @router.get("")
 async def list_agents(
+    region_code: str | None = Query(None, description="按区域过滤"),
     session: AsyncSession = Depends(get_session),
     _=Depends(require_permission("agent:list")),
 ):
-    agents = (
-        await session.execute(select(Agent).order_by(Agent.level, Agent.id))
-    ).scalars().all()
+    """列出代理，可选 region_code 过滤"""
+    stmt = select(Agent).order_by(Agent.region_code, Agent.id)
+    if region_code:
+        stmt = stmt.where(Agent.region_code == region_code)
+    agents = (await session.execute(stmt)).scalars().all()
     return {"items": [AgentOut.model_validate(a).model_dump() for a in agents]}
 
 
@@ -30,12 +36,17 @@ async def create_agent(
 ):
     if not await session.get(User, req.user_id):
         raise HTTPException(400, "用户不存在")
-    if req.level == 2:
-        if not req.parent_id:
-            raise HTTPException(400, "二级代理必须有上级（一级代理）")
-        parent = await session.get(Agent, req.parent_id)
-        if not parent or parent.level != 1:
-            raise HTTPException(400, "上级必须是一级代理")
+    # 区域代码唯一性（同一区域只允许一个代理）
+    existing = (
+        await session.execute(
+            select(Agent).where(
+                Agent.region_code == req.region_code,
+                Agent.status.is_(True),
+            )
+        )
+    ).scalar_one_or_none()
+    if existing:
+        raise HTTPException(400, f"区域 {req.region_code} 已有代理（{existing.name or existing.id}）")
     a = Agent(**req.model_dump())
     session.add(a)
     await session.commit()

@@ -22,7 +22,7 @@
 |---|---|
 | 后端 | Python FastAPI + SQLAlchemy 2.0 async |
 | 数据库 | PostgreSQL（`kk_mis` 库，两服务共用）+ Redis |
-| 前端 | Vue 3.5 + TypeScript + Element Plus + Vite（商务钢蓝，暗色+响应式+按需引入） |
+| 前端 | Vue 3.5 + TypeScript + Element Plus + Vite（Teal 湖青，暗色+响应式+按需引入） |
 | ASR | Mac 本地 MLX Whisper（Belle-whisper-zh-punct） |
 | LLM | 智谱 GLM-4.7 / minimax / 本地 oMLX |
 | 部署 | Nginx（`/oa/` 反代）+ systemd + Tailscale VPN(Mac↔Server) |

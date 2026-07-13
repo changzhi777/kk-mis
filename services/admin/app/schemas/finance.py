@@ -3,7 +3,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ===== 账户 =====
@@ -30,8 +30,7 @@ class AccountOut(BaseModel):
     sort: int
     status: bool
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ===== 科目 =====
@@ -57,8 +56,7 @@ class CategoryOut(BaseModel):
     sort: int
     status: bool
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ===== 流水 =====
@@ -84,5 +82,4 @@ class TransactionOut(BaseModel):
     remark: Optional[str] = None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

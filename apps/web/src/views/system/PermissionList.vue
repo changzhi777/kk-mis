@@ -62,7 +62,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import adminApi from '@/api/admin'
+import adminApi, { getApiError } from '@/api/admin'
 
 const tree = ref<any[]>([])
 const flat = ref<any[]>([])
@@ -102,9 +102,7 @@ async function save() {
     ElMessage.success('保存成功')
     dialogVisible.value = false
     load()
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '保存失败')
-  } finally {
+  } catch (e: unknown) { ElMessage.error(getApiError(e, '保存失败')) } finally {
     saving.value = false
   }
 }
@@ -114,9 +112,7 @@ async function remove(id: number) {
     await permsApi.remove(id)
     ElMessage.success('已删除')
     load()
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '删除失败')
-  }
+  } catch (e: unknown) { ElMessage.error(getApiError(e, '删除失败')) }
 }
 
 onMounted(load)

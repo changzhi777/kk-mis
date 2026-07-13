@@ -95,7 +95,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { Download, Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import adminApi from '@/api/admin'
+import adminApi, { getApiError } from '@/api/admin'
 import TimeText from '@/components/TimeText.vue'
 
 const items = ref<any[]>([])
@@ -166,9 +166,7 @@ async function save() {
     ElMessage.success('录入成功')
     dialogVisible.value = false
     load()
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '录入失败')
-  } finally {
+  } catch (e: unknown) { ElMessage.error(getApiError(e, '录入失败')) } finally {
     saving.value = false
   }
 }
@@ -178,9 +176,7 @@ async function remove(id: number) {
     await api.remove(id)
     ElMessage.success('已删除')
     load()
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '删除失败')
-  }
+  } catch (e: unknown) { ElMessage.error(getApiError(e, '删除失败')) }
 }
 
 async function exportCsv() {

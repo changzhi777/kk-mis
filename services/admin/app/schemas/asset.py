@@ -3,7 +3,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ===== 卡券类型 =====
@@ -28,8 +28,7 @@ class CardTypeUpdate(CardTypeBase):
 class CardTypeOut(CardTypeBase):
     id: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ===== 批次 =====
@@ -50,8 +49,7 @@ class BatchOut(BaseModel):
     valid_until: Optional[datetime] = None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class GenerateCardsRequest(BaseModel):
@@ -70,16 +68,34 @@ class CardOut(BaseModel):
     batch_id: int
     type_id: int
     card_no: str
+    # 防伪字段（决策 #3 重构 2026-07-13）
+    unique_code: Optional[str] = None
+    blockchain_tx_hash: Optional[str] = None
+    qr_url: Optional[str] = None
     status: str
     face_value: Decimal
+    unit_price: Optional[Decimal] = None
     holder_user_id: Optional[int] = None
     issued_at: Optional[datetime] = None
     used_at: Optional[datetime] = None
     valid_until: Optional[datetime] = None
+    last_verified_at: Optional[datetime] = None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CardVerifyOut(BaseModel):
+    """防伪核销响应（公开访问）"""
+    unique_code: str
+    verified: bool
+    reason: Optional[str] = None
+    card_no_prefix: Optional[str] = None
+    batch_id: Optional[int] = None
+    type_id: Optional[int] = None
+    status: Optional[str] = None
+    blockchain_tx_hash: Optional[str] = None
+    last_verified_at: Optional[str] = None
 
 
 class IssueRequest(BaseModel):
@@ -103,5 +119,4 @@ class RedemptionOut(BaseModel):
     remark: Optional[str] = None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

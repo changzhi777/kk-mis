@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.requests import Request
 
+from . import cache
 from .config import settings
 from .db import close_db, init_db
 from .routes import all_routers
@@ -30,7 +31,9 @@ async def lifespan(app: FastAPI):
         await init_db()
     except Exception as e:
         logger.error(f"DB init failed: {e}")
+    await cache.init()  # Redis 缓存层（fail-open，失败不影响启动）
     yield
+    await cache.close()
     await close_db()
     logger.info("kk-mis Admin 关闭")
 

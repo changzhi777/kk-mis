@@ -88,7 +88,7 @@ class MeetingService:
             meeting.decisions = summary.get("decisions", [])
             meeting.action_items = summary.get("action_items", [])
             meeting.llm_model = settings.llm_model_for(self.llm_provider)
-            meeting.completed_at = datetime.utcnow()
+            meeting.completed_at = datetime.now(timezone.utc)
             meeting.status = MeetingStatus.COMPLETED.value
 
             logger.info(

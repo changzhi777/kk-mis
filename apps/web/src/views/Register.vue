@@ -70,6 +70,7 @@ import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Headset, Lock, User } from '@element-plus/icons-vue'
 import { ElMessage, type FormInstance } from 'element-plus'
+import { getApiError } from '@/api/admin'
 import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
@@ -122,9 +123,7 @@ async function submit() {
     })
     ElMessage.success('注册成功，欢迎加入')
     router.push('/')
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '注册失败')
-  } finally {
+  } catch (e: unknown) { ElMessage.error(getApiError(e, '注册失败')) } finally {
     loading.value = false
   }
 }

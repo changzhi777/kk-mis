@@ -1,13 +1,15 @@
-"""分润规则 + 记录 + 结算"""
+"""分润规则 + 记录 + 结算
+
+2026-07-13 data_scope=self 数据隔离：records/summary 仅返回自己代理的数据。
+"""
 from ...utils import utcnow
-from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...db import get_session
-from ...deps import require_permission
+from ...deps import get_user_scope, require_permission
 from ...models import CommissionRecord, CommissionRule
 from ...schemas.agent import CommissionRecordOut, CommissionRuleCreate, CommissionRuleOut
 
@@ -55,13 +57,21 @@ async def list_records(
     status: str = Query(None),
     agent_id: int = Query(None),
     session: AsyncSession = Depends(get_session),
-    _=Depends(require_permission("agent:commission:view")),
+    user=Depends(require_permission("agent:commission:view")),
 ):
+    # data_scope=self 数据隔离：仅返回自己代理的返佣记录
+    scope, my_agent_ids = await get_user_scope(user, session)
     stmt = select(CommissionRecord)
-    if status:
-        stmt = stmt.where(CommissionRecord.status == status)
-    if agent_id:
-        stmt = stmt.where(CommissionRecord.agent_id == agent_id)
+    if scope == "self":
+        if not my_agent_ids:
+            return {"items": [], "total": 0}
+        stmt = stmt.where(CommissionRecord.agent_id.in_(my_agent_ids))
+    else:
+        # all：尊重用户传的 status/agent_id 过滤
+        if status:
+            stmt = stmt.where(CommissionRecord.status == status)
+        if agent_id:
+            stmt = stmt.where(CommissionRecord.agent_id == agent_id)
     total = (
         await session.execute(select(func.count()).select_from(stmt.subquery()))
     ).scalar_one()
@@ -77,13 +87,17 @@ async def list_records(
 @router.get("/summary")
 async def summary(
     session: AsyncSession = Depends(get_session),
-    _=Depends(require_permission("agent:commission:view")),
+    user=Depends(require_permission("agent:commission:view")),
 ):
-    """分润汇总：按 status 聚合金额"""
+    """分润汇总：按 status 聚合金额（data_scope=self 时仅汇总自己）"""
+    scope, my_agent_ids = await get_user_scope(user, session)
+    stmt = select(CommissionRecord.status, func.sum(CommissionRecord.amount))
+    if scope == "self":
+        if not my_agent_ids:
+            return {"items": []}
+        stmt = stmt.where(CommissionRecord.agent_id.in_(my_agent_ids))
     rows = (
-        await session.execute(
-            select(CommissionRecord.status, func.sum(CommissionRecord.amount)).group_by(CommissionRecord.status)
-        )
+        await session.execute(stmt.group_by(CommissionRecord.status))
     ).all()
     return {"items": [{"status": r[0], "amount": float(r[1] or 0)} for r in rows]}
 
@@ -94,7 +108,7 @@ async def settle(
     session: AsyncSession = Depends(get_session),
     _=Depends(require_permission("agent:commission:save")),
 ):
-    """结算某代理的 pending 分润 → settled"""
+    """结算某代理的 pending 分润 → settled（仅 all 角色可调，代理商无 commission:save 权限）"""
     records = (
         await session.execute(
             select(CommissionRecord).where(

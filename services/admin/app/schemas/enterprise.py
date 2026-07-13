@@ -1,7 +1,7 @@
 """企业管理 Schema：部门/用户/角色/权限"""
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ===== 部门 =====
@@ -25,8 +25,7 @@ class DepartmentUpdate(DepartmentBase):
 class DepartmentOut(DepartmentBase):
     id: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ===== 角色 =====
@@ -50,8 +49,7 @@ class RoleUpdate(RoleBase):
 class RoleOut(RoleBase):
     id: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ===== 权限 =====
@@ -68,8 +66,7 @@ class PermissionOut(BaseModel):
     visible: bool
     children: List["PermissionOut"] = []
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PermissionCreate(BaseModel):
@@ -119,8 +116,7 @@ class UserOut(BaseModel):
     status: bool
     role_ids: List[int] = []
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UserResetPassword(BaseModel):

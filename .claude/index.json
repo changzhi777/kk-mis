@@ -1,0 +1,217 @@
+{
+  "timestamp": "2026-07-12T15:55:11+08:00",
+  "project": "kk-mis",
+  "repository_path": "/Users/mac/Documents/Claude/Projects/szdhts-a/mis-system",
+  "scan_summary": {
+    "modules_discovered": 5,
+    "modules_scanned": 5,
+    "modules_with_claude_md": 5,
+    "module_coverage_percent": 100
+  },
+  "modules": [
+    {
+      "name": "web",
+      "path": "apps/web",
+      "type": "frontend",
+      "stack": ["Vue 3.5", "TypeScript 5.6", "Element Plus 2.8", "Vite 5.4", "Pinia 2.2"],
+      "port": 5173,
+      "base_path": "/oa/",
+      "entry_files": ["src/main.ts", "src/App.vue", "src/router/index.ts"],
+      "key_paths": {
+        "views": "src/views/{system,finance,asset,agent,oa,oauth}/",
+        "components": "src/components/",
+        "composables": "src/composables/",
+        "stores": "src/stores/",
+        "api": "src/api/{admin,meetings}.ts",
+        "router": "src/router/index.ts",
+        "styles": "src/styles/{theme,element,base.scss}"
+      },
+      "tests": {
+        "configured": false,
+        "note": "未配置 vitest，建议补齐"
+      },
+      "claude_md": "apps/web/CLAUDE.md",
+      "claude_md_status": "created",
+      "scanned_files": ["package.json", "vite.config.ts", "src/main.ts", "src/router/index.ts", "src/api/admin.ts", "src/stores/user.ts", "src/env.d.ts"]
+    },
+    {
+      "name": "admin",
+      "path": "services/admin",
+      "type": "backend",
+      "stack": ["FastAPI", "SQLAlchemy 2.0 async", "asyncpg", "Pydantic 2", "PyJWT", "bcrypt"],
+      "port": 8300,
+      "entry_files": ["app/main.py"],
+      "key_paths": {
+        "models": "app/models/{base,enterprise,finance,asset,agent,oa,audit,social}.py",
+        "schemas": "app/schemas/{auth,enterprise,finance,asset,agent,oa}.py",
+        "routes": "app/routes/{auth,auth_oauth,users,roles,permissions,departments,audit,dashboard,finance/*,asset/*,agent/*,oa/*}.py",
+        "services": "app/services/approval_engine.py",
+        "oauth": "app/oauth/{base,github,wechat,registry}.py",
+        "config": "app/config.py",
+        "db": "app/db.py",
+        "security": "app/security.py",
+        "seed": "app/seed.py"
+      },
+      "tests": {
+        "configured": true,
+        "framework": "pytest",
+        "test_files": ["test_auth.py", "test_oa.py", "test_asset.py", "test_agent.py", "test_auth_oauth.py"],
+        "total_passing": 24,
+        "note": "conftest.py 用 SQLite 内存库 + session 级 TestClient"
+      },
+      "claude_md": "services/admin/CLAUDE.md",
+      "claude_md_status": "created",
+      "scanned_files": ["requirements.txt", "app/main.py", "app/config.py", "app/seed.py", "app/routes/__init__.py", "app/routes/auth.py", "app/routes/oa/__init__.py", "app/routes/asset/__init__.py", "app/routes/agent/__init__.py", "app/routes/finance/__init__.py", "app/oauth/registry.py", "app/models/enterprise.py", "tests/conftest.py", "tests/test_auth.py", "tests/test_oa.py"]
+    },
+    {
+      "name": "meeting-notes",
+      "path": "services/meeting-notes",
+      "type": "backend",
+      "stack": ["FastAPI", "SQLAlchemy 2.0 async", "httpx", "tenacity", "tenacity"],
+      "port": 8200,
+      "entry_files": ["app/main.py"],
+      "key_paths": {
+        "models": "app/models.py",
+        "schemas": "app/schemas.py",
+        "routes": "app/routes/meetings.py",
+        "services": "app/services/{asr_client,llm,notes}.py",
+        "config": "app/config.py",
+        "db": "app/db.py",
+        "security": "app/security.py"
+      },
+      "tests": {
+        "configured": false,
+        "note": "未配置 pytest，建议 mock ASR/LLM 后补齐"
+      },
+      "claude_md": "services/meeting-notes/CLAUDE.md",
+      "claude_md_status": "created",
+      "scanned_files": ["requirements.txt", "app/main.py", "app/config.py", "app/routes/meetings.py", "app/services/asr_client.py", "app/services/llm.py", "app/services/notes.py", "app/models.py"]
+    },
+    {
+      "name": "mlx-asr",
+      "path": "services/mlx-asr",
+      "type": "backend-worker",
+      "stack": ["FastAPI", "mlx-whisper", "Pydantic 2"],
+      "port": 9000,
+      "platform": "Apple Silicon Mac only (MLX framework)",
+      "entry_files": ["app/main.py"],
+      "key_paths": {
+        "transcriber": "app/transcriber.py",
+        "schemas": "app/schemas.py",
+        "config": "app/config.py"
+      },
+      "tests": {
+        "configured": false,
+        "note": "未配置 pytest，建议 mock mlx_whisper.transcribe"
+      },
+      "claude_md": "services/mlx-asr/CLAUDE.md",
+      "claude_md_status": "created",
+      "scanned_files": ["requirements.txt", "app/main.py", "app/config.py", "app/transcriber.py"]
+    },
+    {
+      "name": "asr-cluster",
+      "path": "services/asr-cluster",
+      "type": "backend-coordinator",
+      "stack": ["FastAPI", "httpx", "asyncio", "dataclass"],
+      "port": 9100,
+      "entry_files": ["app/main.py"],
+      "key_paths": {
+        "nodes": "app/nodes.py",
+        "client": "app/client.py"
+      },
+      "tests": {
+        "configured": false,
+        "note": "未配置 pytest；项目根缺 requirements.txt，需手装 fastapi/uvicorn/httpx/pydantic"
+      },
+      "claude_md": "services/asr-cluster/CLAUDE.md",
+      "claude_md_status": "created",
+      "scanned_files": ["app/main.py", "app/nodes.py", "app/client.py", "start.sh"],
+      "gaps": ["缺少 requirements.txt"]
+    }
+  ],
+  "coverage": {
+    "estimated_total_source_files": 100,
+    "scanned_source_files": 50,
+    "ignored_categories": {
+      "node_modules": "excluded (pnpm 缓存)",
+      ".venv": "excluded (Python 虚拟环境)",
+      ".pnpm": "excluded (pnpm 内部)",
+      "__pycache__": "excluded (Python 字节码)",
+      ".pytest_cache": "excluded",
+      "site-packages": "excluded (pip 安装)"
+    },
+    "node_modules_files_total": 60458,
+    "venv_files_total": 5000,
+    "actual_source_files_in_apps_services_infra": 100,
+    "scanned_source_files_count": 50,
+    "coverage_percent": 50,
+    "note": "50% 是因为许多模块文件未逐一读取（如 admin 的 5 个 models、5 个 schemas、20+ routes），但通过入口/聚合文件已对模块整体有了完整理解"
+  },
+  "gaps": [
+    {
+      "area": "admin.models",
+      "note": "未逐文件读取 finance/asset/agent/oa/audit/social 模型，只读 enterprise.py",
+      "recommendation": "下次补读 app/models/{finance,asset,agent,oa,audit,social}.py"
+    },
+    {
+      "area": "admin.routes.detail",
+      "note": "未逐文件读取 20+ 路由实现，只读 auth.py 和聚合 __init__.py",
+      "recommendation": "下次按需补读具体业务路由"
+    },
+    {
+      "area": "admin.schemas.detail",
+      "note": "未逐文件读取 6 个 schema 文件",
+      "recommendation": "按需补读"
+    },
+    {
+      "area": "admin.services.approval_engine",
+      "note": "未读取审批引擎实现",
+      "recommendation": "补读 app/services/approval_engine.py 以理解节点配置和越权校验逻辑"
+    },
+    {
+      "area": "web.views",
+      "note": "未读取 28 个 view 的实现",
+      "recommendation": "按需补读（按业务域：system/finance/asset/agent/oa）"
+    },
+    {
+      "area": "meeting-notes.tests",
+      "note": "无 tests 目录，建议补 pytest 配置",
+      "recommendation": "新建 services/meeting-notes/tests/ 并 mock ASR/LLM"
+    },
+    {
+      "area": "mlx-asr.tests",
+      "note": "无 tests 目录",
+      "recommendation": "新建 services/mlx-asr/tests/ 并 mock mlx_whisper"
+    },
+    {
+      "area": "asr-cluster.tests",
+      "note": "无 tests 目录，且缺 requirements.txt",
+      "recommendation": "先补 requirements.txt，再补 tests/"
+    },
+    {
+      "area": "web.tests",
+      "note": "无 vitest 配置",
+      "recommendation": "在 apps/web/ 加 vitest.config.ts + src/test/setup.ts"
+    }
+  ],
+  "truncated": false,
+  "truncation_reason": null,
+  "next_steps": [
+    "补读 admin 服务的 models/schemas/routes 细节（按需）",
+    "在 apps/web 配置 vitest 测试框架",
+    "为 meeting-notes/mlx-asr/asr-cluster 补 pytest（mock 外部依赖）",
+    "为 asr-cluster 补 requirements.txt",
+    "（可选）补 CI/CD 配置，自动化部署替代 scp 直传"
+  ],
+  "memory_pointers": {
+    "index": "/Users/mac/.claude/projects/-Users-mac-Documents-Claude-Projects-szdhts-a/memory/MEMORY.md",
+    "files": [
+      "project-mis-overview.md",
+      "project-mis-deploy.md",
+      "project-mis-frontend-redesign.md",
+      "project-mis-rbac-audit.md",
+      "project-mis-decisions.md",
+      "reference-mis-oss.md"
+    ]
+  }
+}

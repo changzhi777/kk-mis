@@ -1,7 +1,15 @@
 """SQLAlchemy 模型聚合"""
-from .agent import Agent, AgentOrder, CommissionRecord, CommissionRule
-from .asset import AssetCard, AssetCardBatch, AssetCardType, AssetRedemption
+from .agent import (
+    Agent,
+    AgentOrder,
+    CommissionRecord,
+    CommissionRule,
+    YearlyCommissionRecord,
+    YearlyCommissionRule,
+)
+from .asset import AssetCard, AssetCardBatch, AssetCardType, AssetRedemption, CardTransfer
 from .audit import AuditLog
+from .member import MemberLevel, MemberStat, PointsLog
 from .oa import (
     Announcement,
     ApprovalFlow,
@@ -43,7 +51,12 @@ __all__ = [
     "AgentOrder",
     "CommissionRule",
     "CommissionRecord",
+    "YearlyCommissionRule",
+    "YearlyCommissionRecord",
     "AuditLog",
+    "MemberLevel",
+    "MemberStat",
+    "PointsLog",
     "Announcement",
     "ApprovalFlow",
     "ApprovalInstance",

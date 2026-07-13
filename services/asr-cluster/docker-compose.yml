@@ -1,0 +1,37 @@
+# ASR Cluster Manager — 单服务部署
+# 用法：
+#   cp .env.example .env  # 填 MLX_ASR_API_KEY / DEFAULT_ASR_NODE_URL
+#   docker compose up -d
+#   docker compose logs -f
+#   docker compose down
+#
+# 注意：集群内其他服务（meeting-notes :8200）通过反向代理或直连访问 :9100
+services:
+  asr-cluster:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: kk-mis/asr-cluster:1.0.0
+    container_name: kk-mis-asr-cluster
+    restart: unless-stopped
+    ports:
+      - "9100:9100"
+    env_file:
+      - .env
+    environment:
+      # 缺省值（可被 .env 覆盖）
+      DEFAULT_ASR_NODE_URL: "http://100.88.88.34:9000"
+      MLX_ASR_API_KEY: "kk-mis-asr-local-dev-key-2026"
+      APP_HOST: "0.0.0.0"
+      APP_PORT: "9100"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://127.0.0.1:9100/health', timeout=3).raise_for_status()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

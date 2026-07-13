@@ -1,13 +1,13 @@
-/* 亮色模式 CSS 变量（钢蓝商务主题） */
+/* 亮色模式 CSS 变量（Teal 湖青清新主题） */
 :root {
-  /* ===== Element Plus 主色（钢蓝 #2B5A99 体系） ===== */
-  --el-color-primary: #2b5a99;
-  --el-color-primary-light-3: #557ab3;
-  --el-color-primary-light-5: #7d9acc;
-  --el-color-primary-light-7: #a6bbdf;
-  --el-color-primary-light-8: #bacde8;
-  --el-color-primary-light-9: #eaf0f8;
-  --el-color-primary-dark-2: #22487a;
+  /* ===== Element Plus 主色（Teal #0d9488 体系） ===== */
+  --el-color-primary: #0d9488;
+  --el-color-primary-light-3: #2dd4bf;
+  --el-color-primary-light-5: #5eead4;
+  --el-color-primary-light-7: #99f6e4;
+  --el-color-primary-light-8: #ccfbf1;
+  --el-color-primary-light-9: #f0fdfa;
+  --el-color-primary-dark-2: #0f766e;
 
   /* ===== 语义色 ===== */
   --el-color-success: #16a34a;
@@ -19,58 +19,58 @@
   --el-color-info: #64748b;
   --el-color-info-light-9: #f1f5f9;
 
-  /* ===== 文字 ===== */
-  --el-text-color-primary: #1b2533;
-  --el-text-color-regular: #3d4e63;
-  --el-text-color-secondary: #6b7e94;
-  --el-text-color-placeholder: #9aabbf;
-  --el-text-color-disabled: #bcc8d5;
+  /* ===== 文字（中性灰，清晰可读） ===== */
+  --el-text-color-primary: #1f2937;
+  --el-text-color-regular: #4b5563;
+  --el-text-color-secondary: #6b7280;
+  --el-text-color-placeholder: #9ca3af;
+  --el-text-color-disabled: #d1d5db;
 
-  /* ===== 边框 ===== */
-  --el-border-color: #d1dae5;
-  --el-border-color-light: #e3e9f0;
-  --el-border-color-lighter: #eef2f7;
-  --el-border-color-extra-light: #f5f7fa;
-  --el-border-color-dark: #b5c0ce;
+  /* ===== 边框（中性淡灰） ===== */
+  --el-border-color: #e5e7eb;
+  --el-border-color-light: #f3f4f6;
+  --el-border-color-lighter: #f9fafb;
+  --el-border-color-extra-light: #fcfdfe;
+  --el-border-color-dark: #d1d5db;
 
   /* ===== 填充 ===== */
-  --el-fill-color: #eef2f7;
-  --el-fill-color-light: #f5f7fa;
-  --el-fill-color-lighter: #f9fbfd;
-  --el-fill-color-extra-light: #fcfdfe;
-  --el-fill-color-dark: #dde4ed;
+  --el-fill-color: #f3f4f6;
+  --el-fill-color-light: #f9fafb;
+  --el-fill-color-lighter: #fcfdfe;
+  --el-fill-color-extra-light: #ffffff;
+  --el-fill-color-dark: #e5e7eb;
   --el-fill-color-blank: #ffffff;
 
-  /* ===== 背景 ===== */
+  /* ===== 背景（极淡青灰，清新） ===== */
   --el-bg-color: #ffffff;
-  --el-bg-color-page: #f5f7fa;
+  --el-bg-color-page: #f6f8f8;
   --el-bg-color-overlay: #ffffff;
 
-  /* ===== 圆角 ===== */
-  --el-border-radius-base: 6px;
+  /* ===== 圆角（更柔和） ===== */
+  --el-border-radius-base: 8px;
   --el-border-radius-small: 4px;
   --el-border-radius-round: 20px;
 
-  /* ===== 阴影 ===== */
-  --el-box-shadow: 0 2px 8px rgba(16, 32, 53, 0.08), 0 1px 3px rgba(16, 32, 53, 0.06);
-  --el-box-shadow-light: 0 1px 2px rgba(16, 32, 53, 0.06);
-  --el-box-shadow-dark: 0 8px 24px rgba(16, 32, 53, 0.12), 0 2px 6px rgba(16, 32, 53, 0.06);
+  /* ===== 阴影（淡青调） ===== */
+  --el-box-shadow: 0 2px 8px rgba(13, 148, 136, 0.08), 0 1px 3px rgba(13, 148, 136, 0.06);
+  --el-box-shadow-light: 0 1px 2px rgba(13, 148, 136, 0.06);
+  --el-box-shadow-dark: 0 8px 24px rgba(13, 148, 136, 0.12), 0 2px 6px rgba(13, 148, 136, 0.06);
 
-  /* ===== 侧边栏 Token ===== */
-  --c-sidebar-bg: #1b2a3f;
-  --c-sidebar-bg-deep: #14213a;
-  --c-sidebar-item-hover: rgba(255, 255, 255, 0.06);
-  --c-sidebar-item-active: #2b5a99;
-  --c-sidebar-text: #94a3b8;
-  --c-sidebar-text-active: #ffffff;
-  --c-sidebar-icon: #64748b;
-  --c-sidebar-icon-active: #ffffff;
-  --c-sidebar-border: rgba(255, 255, 255, 0.08);
+  /* ===== 侧边栏 Token（浅色化：白底 + 青色 active） ===== */
+  --c-sidebar-bg: #ffffff;
+  --c-sidebar-bg-deep: #f6f8f8;
+  --c-sidebar-item-hover: rgba(13, 148, 136, 0.06);
+  --c-sidebar-item-active: rgba(13, 148, 136, 0.10);
+  --c-sidebar-text: #4b5563;
+  --c-sidebar-text-active: #0d9488;
+  --c-sidebar-icon: #9ca3af;
+  --c-sidebar-icon-active: #0d9488;
+  --c-sidebar-border: #e5e7eb;
 
   /* ===== 自定义阴影 Token ===== */
-  --shadow-sm: 0 1px 2px rgba(16, 32, 53, 0.06);
-  --shadow-md: 0 2px 8px rgba(16, 32, 53, 0.08), 0 1px 3px rgba(16, 32, 53, 0.06);
-  --shadow-lg: 0 8px 24px rgba(16, 32, 53, 0.12), 0 2px 6px rgba(16, 32, 53, 0.06);
+  --shadow-sm: 0 1px 2px rgba(13, 148, 136, 0.06);
+  --shadow-md: 0 2px 8px rgba(13, 148, 136, 0.08), 0 1px 3px rgba(13, 148, 136, 0.06);
+  --shadow-lg: 0 8px 24px rgba(13, 148, 136, 0.12), 0 2px 6px rgba(13, 148, 136, 0.06);
 
   color-scheme: light;
 }

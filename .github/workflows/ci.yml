@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  # 后端单元测试（admin / meeting-notes / asr-cluster）
+  backend-unit:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [admin, meeting-notes, asr-cluster]
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: services/${{ matrix.service }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: services/${{ matrix.service }}/requirements.txt
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio httpx respx
+      - name: Run unit tests
+        # 忽略 integration（需 requests/外部服务）/ e2e / performance（慢）
+        run: PYTHONPATH=. pytest tests/ -q --tb=short --ignore=tests/integration --ignore=tests/e2e --ignore=tests/performance
+
+  # mlx-asr：mock mlx_whisper，不装 Apple Silicon 专属依赖
+  mlx-asr-unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: services/mlx-asr
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies（跳过 mlx-whisper，Linux 不可用；测试 mock 它）
+        run: |
+          python -m pip install --upgrade pip
+          pip install fastapi "uvicorn[standard]" python-multipart pydantic pytest pytest-asyncio httpx
+      - name: Run unit tests
+        run: PYTHONPATH=. pytest tests/ -q --tb=short
+
+  # 前端单元测试（Vue3 + vitest）
+  frontend-unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Test
+        run: pnpm test

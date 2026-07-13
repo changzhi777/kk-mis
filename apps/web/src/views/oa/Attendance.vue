@@ -63,7 +63,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { Download } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import adminApi from '@/api/admin'
+import adminApi, { getApiError } from '@/api/admin'
 
 const month = ref(new Date().toISOString().slice(0, 7))
 const today = reactive<any>({ clock_in: null, clock_out: null, status: null })
@@ -72,7 +72,7 @@ const items = ref<any[]>([])
 const loading = ref(false), li = ref(false), lo = ref(false)
 
 const statusText = (x: string) => ({ normal: '正常', late: '迟到', early: '早退' }[x] || x)
-const statusType = (x: string) => ({ normal: 'success', late: 'warning', early: 'danger' }[x] || undefined) as any
+const statusType = (x: string) => ({ normal: 'success', late: 'warning', early: 'danger' } as const)[x]
 
 async function loadToday() {
   Object.assign(today, await adminApi.attendanceToday())
@@ -97,9 +97,7 @@ async function doClockIn() {
     ElMessage.success('上班打卡成功')
     loadToday()
     load()
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '失败')
-  } finally { li.value = false }
+  } catch (e: unknown) { ElMessage.error(getApiError(e, '失败')) } finally { li.value = false }
 }
 
 async function doClockOut() {
@@ -109,9 +107,7 @@ async function doClockOut() {
     ElMessage.success('下班打卡成功')
     loadToday()
     load()
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '失败')
-  } finally { lo.value = false }
+  } catch (e: unknown) { ElMessage.error(getApiError(e, '失败')) } finally { lo.value = false }
 }
 
 async function exportCsv() {

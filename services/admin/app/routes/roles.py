@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_session
 from ..deps import require_permission
+from .. import cache
 from ..models import Role, role_permissions
 from ..schemas.enterprise import RoleCreate, RoleOut, RoleUpdate
 
@@ -81,6 +82,7 @@ async def update_role(
     for pid in (req.permission_ids or []):
         await session.execute(role_permissions.insert().values(role_id=role_id, permission_id=pid))
     await session.commit()
+    await cache.invalidate_role(role_id, session)  # 角色权限变更 → 失效该角色用户缓存
     await session.refresh(r)
     return RoleOut.model_validate(r)
 
@@ -96,6 +98,7 @@ async def delete_role(
         raise HTTPException(404, "角色不存在")
     if r.code == "super_admin":
         raise HTTPException(400, "不可删除超级管理员角色")
+    await cache.invalidate_role(role_id, session)  # 删前失效该角色用户的缓存
     await session.delete(r)
     await session.commit()
     return {"success": True}

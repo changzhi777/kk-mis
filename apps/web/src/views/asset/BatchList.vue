@@ -48,7 +48,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
 import { Download } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import adminApi from '@/api/admin'
+import adminApi, { getApiError } from '@/api/admin'
 const items = ref<any[]>([]), types = ref<any[]>([]), loading = ref(false), s = ref(false)
 const bdv = ref(false), gdv = ref(false), genQty = ref(10), genCards = ref<any[]>([])
 const form = reactive<any>({ type_id: null, name: '', quantity: 100 })
@@ -65,12 +65,12 @@ async function load() {
 function openBatch() { Object.assign(form, { type_id: types.value[0]?.id, name: '', quantity: 100 }); bdv.value = true }
 async function save() {
   s.value = true
-  try { await api.create(form); ElMessage.success('批次已创建'); bdv.value = false; load() } catch (e: any) { ElMessage.error(e.response?.data?.detail || '失败') } finally { s.value = false }
+  try { await api.create(form); ElMessage.success('批次已创建'); bdv.value = false; load() } catch (e: unknown) { ElMessage.error(getApiError(e, '失败')) } finally { s.value = false }
 }
 function openGen(row: any) { genCards.value = []; genQty.value = 10; gdv.value = true; sessionStorage['genBatchId'] = row.id }
 async function doGen() {
   s.value = true
-  try { const r = await adminApi.generateCards(Number(sessionStorage['genBatchId']), genQty.value); genCards.value = r.cards; ElMessage.success(`生成 ${r.generated} 张`) } catch (e: any) { ElMessage.error(e.response?.data?.detail || '失败') } finally { s.value = false; load() }
+  try { const r = await adminApi.generateCards(Number(sessionStorage['genBatchId']), genQty.value); genCards.value = r.cards; ElMessage.success(`生成 ${r.generated} 张`) } catch (e: unknown) { ElMessage.error(getApiError(e, '失败')) } finally { s.value = false; load() }
 }
 onMounted(load)
 function exportCsv() {

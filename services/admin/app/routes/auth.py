@@ -150,7 +150,11 @@ async def my_menus(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    """当前用户可见的菜单树（按权限过滤 menu 类型 permission + 祖先补全 + 建树）"""
+    """当前用户可见的菜单树（按权限过滤 menu 类型 permission + 祖先补全 + 建树）。Redis 缓存。"""
+    from .. import cache
+    cached = await cache.get_json(f"user:{user.id}:menus")
+    if cached is not None:
+        return cached
     all_menus = (
         await session.execute(
             select(Permission)
@@ -190,4 +194,5 @@ async def my_menus(
             nodes[m.parent_id]["children"].append(node)
         else:
             tree.append(node)
+    await cache.set_json(f"user:{user.id}:menus", tree)
     return tree

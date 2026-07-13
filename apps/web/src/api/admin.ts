@@ -3,6 +3,15 @@
  * baseURL = BASE_URL + 'admin'（dev /admin/ → proxy 8300；生产 /oa/admin/ → nginx 反代）
  */
 import axios from 'axios'
+import type {
+  AttendanceRecord,
+  AttendanceStats,
+  CategoryReportItem,
+  CommissionSummaryItem,
+  MenuItem,
+  PermissionNode,
+  WorkReport,
+} from '@/types'
 
 export interface UserInfo {
   id: number
@@ -27,6 +36,18 @@ const http = axios.create({
   baseURL: import.meta.env.BASE_URL + 'admin',
   timeout: 30000,
 })
+
+export { http }
+
+/** 从 unknown 错误中提取后端 detail（axios 错误结构），DRY 统一处理 */
+export function getApiError(e: unknown, fallback = '操作失败'): string {
+  if (axios.isAxiosError(e)) {
+    const detail = (e.response?.data as { detail?: string } | undefined)?.detail
+    return detail || fallback
+  }
+  if (e instanceof Error) return e.message || fallback
+  return fallback
+}
 
 // 请求拦截：带 JWT（动态 import store 避免循环依赖）
 http.interceptors.request.use(async (config) => {
@@ -66,7 +87,7 @@ export const adminApi = {
     const { data } = await http.get('/api/v1/auth/me')
     return data
   },
-  async fetchMenus(): Promise<any[]> {
+  async fetchMenus(): Promise<MenuItem[]> {
     const { data } = await http.get('/api/v1/auth/menus')
     return data
   },
@@ -97,21 +118,21 @@ export const adminApi = {
   async resetUserPassword(id: number, password: string) {
     await http.put(`/api/v1/users/${id}/password`, { password })
   },
-  async permissionTree() {
+  async permissionTree(): Promise<PermissionNode[]> {
     const { data } = await http.get('/api/v1/permissions/tree')
-    return data.tree as any[]
+    return data.tree as PermissionNode[]
   },
-  async permissionFlat() {
+  async permissionFlat(): Promise<PermissionNode[]> {
     const { data } = await http.get('/api/v1/permissions/flat')
-    return data.items as any[]
+    return data.items as PermissionNode[]
   },
-  async reportSummary(params?: any) {
+  async reportSummary(params?: Record<string, unknown>) {
     const { data } = await http.get('/api/v1/finance/reports/summary', { params })
     return data as { income: number; expense: number; balance: number; count: number }
   },
-  async reportByCategory(params?: any) {
+  async reportByCategory(params?: Record<string, unknown>): Promise<CategoryReportItem[]> {
     const { data } = await http.get('/api/v1/finance/reports/by-category', { params })
-    return data.items as any[]
+    return data.items as CategoryReportItem[]
   },
   // 资产专用
   async generateCards(batchId: number, quantity: number) {
@@ -131,19 +152,19 @@ export const adminApi = {
   // 代理专用
   async payOrder(id: number) { await http.post(`/api/v1/agent/orders/${id}/pay`) },
   async completeOrder(id: number) { const { data } = await http.post(`/api/v1/agent/orders/${id}/complete`); return data },
-  async commissionSummary() { const { data } = await http.get('/api/v1/agent/commissions/summary'); return data.items as any[] },
+  async commissionSummary(): Promise<CommissionSummaryItem[]> { const { data } = await http.get('/api/v1/agent/commissions/summary'); return data.items as CommissionSummaryItem[] },
   async settleCommission(agentId: number) { await http.post(`/api/v1/agent/commissions/settle`, null, { params: { agent_id: agentId } }) },
   // 工作汇报
-  async allReports() { const { data } = await http.get('/api/v1/oa/reports/all'); return data.items as any[] },
+  async allReports(): Promise<WorkReport[]> { const { data } = await http.get('/api/v1/oa/reports/all'); return data.items as WorkReport[] },
   async readReport(id: number) { await http.put(`/api/v1/oa/reports/${id}/read`) },
   // 考勤打卡
   async attendanceToday() { const { data } = await http.get('/api/v1/oa/attendance/today'); return data },
   async clockIn() { const { data } = await http.post('/api/v1/oa/attendance/clock-in'); return data },
   async clockOut() { const { data } = await http.post('/api/v1/oa/attendance/clock-out'); return data },
-  async attendanceMe(month: string) { const { data } = await http.get('/api/v1/oa/attendance/me', { params: { month } }); return data.items as any[] },
-  async attendanceStats(month: string) { const { data } = await http.get('/api/v1/oa/attendance/stats', { params: { month } }); return data as any },
+  async attendanceMe(month: string): Promise<AttendanceRecord[]> { const { data } = await http.get('/api/v1/oa/attendance/me', { params: { month } }); return data.items as AttendanceRecord[] },
+  async attendanceStats(month: string): Promise<AttendanceStats> { const { data } = await http.get('/api/v1/oa/attendance/stats', { params: { month } }); return data as AttendanceStats },
   // CSV 导出下载（通用）
-  async downloadCsv(path: string, params?: any) {
+  async downloadCsv(path: string, params?: Record<string, unknown>) {
     const r = await http.get(path, { params, responseType: 'blob' })
     const cd = (r.headers['content-disposition'] || '') as string
     const filename = (cd.match(/filename="?([^";]+)"?/) || [, 'export.csv'])[1]
@@ -157,12 +178,12 @@ export const adminApi = {
     URL.revokeObjectURL(url)
   },
   // 通用资源 CRUD（企业/财务复用）
-  resource<T = any>(path: string) {
+  resource<T = unknown>(path: string) {
     return {
-      list: (params?: any) => http.get(path, { params }).then((r) => r.data),
+      list: (params?: Record<string, unknown>) => http.get(path, { params }).then((r) => r.data),
       get: (id: number) => http.get(`${path}/${id}`).then((r) => r.data as T),
-      create: (body: any) => http.post(path, body).then((r) => r.data as T),
-      update: (id: number, body: any) => http.put(`${path}/${id}`, body).then((r) => r.data as T),
+      create: (body: Record<string, unknown>) => http.post(path, body).then((r) => r.data as T),
+      update: (id: number, body: Record<string, unknown>) => http.put(`${path}/${id}`, body).then((r) => r.data as T),
       remove: (id: number) => http.delete(`${path}/${id}`).then((r) => r.data),
     }
   },

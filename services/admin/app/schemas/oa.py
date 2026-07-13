@@ -3,7 +3,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ===== 公告 =====
@@ -26,8 +26,7 @@ class AnnouncementOut(BaseModel):
     created_at: datetime
     published_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ===== 审批流程定义 =====
@@ -41,8 +40,7 @@ class ApprovalFlowCreate(BaseModel):
 class ApprovalFlowOut(ApprovalFlowCreate):
     id: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ===== 审批实例/记录 =====
@@ -56,8 +54,7 @@ class ApprovalInstanceOut(BaseModel):
     current_node: int
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ApprovalRecordOut(BaseModel):
@@ -69,8 +66,7 @@ class ApprovalRecordOut(BaseModel):
     comment: Optional[str] = None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ApproveRequest(BaseModel):
@@ -98,8 +94,7 @@ class LeaveOut(BaseModel):
     instance_id: Optional[int] = None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ===== 报销 =====
@@ -121,8 +116,7 @@ class ExpenseOut(BaseModel):
     instance_id: Optional[int] = None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ===== 工作汇报 =====
@@ -147,8 +141,7 @@ class ReportOut(BaseModel):
     status: str
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ===== 考勤 =====
@@ -161,5 +154,4 @@ class AttendanceOut(BaseModel):
     status: str
     work_hours: Optional[Decimal] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

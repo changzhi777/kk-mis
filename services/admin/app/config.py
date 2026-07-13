@@ -1,58 +1,173 @@
-"""企业管理服务 - 配置"""
+"""企业管理服务 - 配置。
+
+安全：占位符 secret 在生产模式（APP_ENV=production 或 DB_DRIVER=postgres）
+下会 fail-fast 阻止启动。
+
+注意：不用 pydantic-settings（其 model_post_init 在 import 时冻结 env，
+后续 monkeypatch 不生效）。改用手动从 os.environ 读取，每次构造都重新读。
+"""
+
+from __future__ import annotations
+
 import os
 from pathlib import Path
-from pydantic import BaseModel
+
+from pydantic import BaseModel, model_validator
+
+
+# ── 占位符检测（防硬编码 secret 被带进生产） ──────────────────────────
+_PLACEHOLDER_SECRETS = frozenset(
+    {
+        "kk-mis-admin-secret-change-me",
+        "kk-mis-jwt-secret-change-in-prod",
+        "kk-mis-dev-secret-change-me",
+        "change-me",
+        "changeme",
+        "",
+    }
+)
+
+_PLACEHOLDER_PASSWORDS = frozenset(
+    {
+        "admin",
+        "admin123",
+        "admin1234",
+        "password",
+        "123456",
+        "",
+    }
+)
+
+
+def _env(key: str, default: str = "") -> str:
+    """从 os.environ 读（每次调用重读，不冻结）。"""
+    return os.environ.get(key, default)
+
+
+def _env_int(key: str, default: int) -> int:
+    try:
+        return int(_env(key, str(default)))
+    except (ValueError, TypeError):
+        return default
+
+
+def _env_bool(key: str, default: bool = False) -> bool:
+    return _env(key, str(default)).lower() == "true"
 
 
 class Settings(BaseModel):
-    """企业管理 + 财务服务配置"""
+    """企业管理 + 财务服务配置（每次构造都从 os.environ 重读）"""
 
     # 服务
-    host: str = os.getenv("APP_HOST", "0.0.0.0")
-    port: int = int(os.getenv("APP_PORT", "8300"))
-    debug: bool = os.getenv("APP_DEBUG", "false").lower() == "true"
-    secret_key: str = os.getenv("APP_SECRET_KEY", "kk-mis-admin-secret-change-me")
+    host: str = ""
+    port: int = 0
+    debug: bool = False
+    secret_key: str = ""
+    app_env: str = ""
 
-    # 数据库（默认 SQLite 便于开发；生产用 PostgreSQL）
-    db_driver: str = os.getenv("DB_DRIVER", "sqlite")
-    postgres_host: str = os.getenv("POSTGRES_HOST", "127.0.0.1")
-    postgres_port: int = int(os.getenv("POSTGRES_PORT", "5432"))
-    postgres_user: str = os.getenv("POSTGRES_USER", "postgres")
-    postgres_password: str = os.getenv("POSTGRES_PASSWORD", "")
-    postgres_db: str = os.getenv("POSTGRES_DB", "kk_admin")
-    sqlite_path: str = os.getenv("SQLITE_PATH", "./storage/admin.db")
+    # 数据库
+    db_driver: str = ""
+    postgres_host: str = ""
+    postgres_port: int = 0
+    postgres_user: str = ""
+    postgres_password: str = ""
+    postgres_db: str = ""
+    sqlite_path: str = ""
 
     # Redis
-    redis_host: str = os.getenv("REDIS_HOST", "127.0.0.1")
-    redis_port: int = int(os.getenv("REDIS_PORT", "6379"))
-    redis_password: str = os.getenv("REDIS_PASSWORD", "")
-    redis_db: int = int(os.getenv("REDIS_DB", "1"))
+    redis_host: str = ""
+    redis_port: int = 0
+    redis_password: str = ""
+    redis_db: int = 0
 
-    # JWT 认证
-    jwt_secret: str = os.getenv("JWT_SECRET", "kk-mis-jwt-secret-change-in-prod")
-    jwt_algorithm: str = os.getenv("JWT_ALGORITHM", "HS256")
-    # access token 2 小时，refresh token 7 天
-    access_token_expire: int = int(os.getenv("ACCESS_TOKEN_EXPIRE", "7200"))
-    refresh_token_expire: int = int(os.getenv("REFRESH_TOKEN_EXPIRE", "604800"))
+    # JWT
+    jwt_secret: str = ""
+    jwt_algorithm: str = ""
+    access_token_expire: int = 0
+    refresh_token_expire: int = 0
 
-    # 初始超管（首次启动 init_db 时写入）
-    init_admin_username: str = os.getenv("INIT_ADMIN_USERNAME", "admin")
-    init_admin_password: str = os.getenv("INIT_ADMIN_PASSWORD", "admin123")
+    # 初始超管
+    init_admin_username: str = ""
+    init_admin_password: str = ""
 
-    # OAuth 第三方登录（GitHub 先打通，微信预留）
-    github_client_id: str = os.getenv("GITHUB_CLIENT_ID", "")
-    github_client_secret: str = os.getenv("GITHUB_CLIENT_SECRET", "")
-    github_redirect_uri: str = os.getenv("GITHUB_REDIRECT_URI", "")
-    wechat_client_id: str = os.getenv("WECHAT_CLIENT_ID", "")
-    wechat_client_secret: str = os.getenv("WECHAT_CLIENT_SECRET", "")
-    wechat_redirect_uri: str = os.getenv("WECHAT_REDIRECT_URI", "")
-    oauth_frontend_redirect: str = os.getenv("OAUTH_FRONTEND_REDIRECT", "/oa/oauth/callback")
+    # OAuth
+    github_client_id: str = ""
+    github_client_secret: str = ""
+    github_redirect_uri: str = ""
+    wechat_client_id: str = ""
+    wechat_client_secret: str = ""
+    wechat_redirect_uri: str = ""
+    oauth_frontend_redirect: str = ""
 
     # CORS
-    cors_origins: str = os.getenv("CORS_ORIGINS", "*")
+    cors_origins: str = ""
 
     # 日志
-    log_level: str = os.getenv("LOG_LEVEL", "INFO")
+    log_level: str = ""
+
+    @classmethod
+    def from_env(cls) -> "Settings":
+        """工厂方法：每次调用都从 os.environ 重读最新值。"""
+        return cls(
+            host=_env("APP_HOST", "0.0.0.0"),
+            port=_env_int("APP_PORT", 8300),
+            debug=_env_bool("APP_DEBUG"),
+            secret_key=_env("APP_SECRET_KEY", "kk-mis-admin-secret-change-me"),
+            app_env=_env("APP_ENV", "development"),
+            db_driver=_env("DB_DRIVER", "sqlite"),
+            postgres_host=_env("POSTGRES_HOST", "127.0.0.1"),
+            postgres_port=_env_int("POSTGRES_PORT", 5432),
+            postgres_user=_env("POSTGRES_USER", "postgres"),
+            postgres_password=_env("POSTGRES_PASSWORD", ""),
+            postgres_db=_env("POSTGRES_DB", "kk_admin"),
+            sqlite_path=_env("SQLITE_PATH", "./storage/admin.db"),
+            redis_host=_env("REDIS_HOST", "127.0.0.1"),
+            redis_port=_env_int("REDIS_PORT", 6379),
+            redis_password=_env("REDIS_PASSWORD", ""),
+            redis_db=_env_int("REDIS_DB", 1),
+            jwt_secret=_env("JWT_SECRET", "kk-mis-jwt-secret-change-in-prod"),
+            jwt_algorithm=_env("JWT_ALGORITHM", "HS256"),
+            access_token_expire=_env_int("ACCESS_TOKEN_EXPIRE", 7200),
+            refresh_token_expire=_env_int("REFRESH_TOKEN_EXPIRE", 604800),
+            init_admin_username=_env("INIT_ADMIN_USERNAME", "admin"),
+            init_admin_password=_env("INIT_ADMIN_PASSWORD", "admin123"),
+            github_client_id=_env("GITHUB_CLIENT_ID", ""),
+            github_client_secret=_env("GITHUB_CLIENT_SECRET", ""),
+            github_redirect_uri=_env("GITHUB_REDIRECT_URI", ""),
+            wechat_client_id=_env("WECHAT_CLIENT_ID", ""),
+            wechat_client_secret=_env("WECHAT_CLIENT_SECRET", ""),
+            wechat_redirect_uri=_env("WECHAT_REDIRECT_URI", ""),
+            oauth_frontend_redirect=_env("OAUTH_FRONTEND_REDIRECT", "/oa/oauth/callback"),
+            cors_origins=_env("CORS_ORIGINS", "*"),
+            log_level=_env("LOG_LEVEL", "INFO"),
+        )
+
+    @model_validator(mode="after")
+    def _validate_production_secrets(self) -> "Settings":
+        """生产模式（APP_ENV=production 或 DB_DRIVER=postgres）下强制要求 secret 非占位符。"""
+        is_prod = self.app_env == "production" or self.db_driver == "postgres"
+        if not is_prod:
+            return self
+
+        errors: list[str] = []
+        if self.jwt_secret in _PLACEHOLDER_SECRETS:
+            errors.append(
+                "JWT_SECRET 是占位符（生产必须改）— 设置环境变量覆盖，例如 `JWT_SECRET=$(openssl rand -hex 32)`"
+            )
+        if self.secret_key in _PLACEHOLDER_SECRETS:
+            errors.append("APP_SECRET_KEY 是占位符")
+        if self.init_admin_password in _PLACEHOLDER_PASSWORDS:
+            errors.append(
+                "INIT_ADMIN_PASSWORD 是占位符（生产必须改）— 当前值: "
+                f"'{self.init_admin_password}'"
+            )
+        if self.db_driver == "postgres" and not self.postgres_password:
+            errors.append("DB_DRIVER=postgres 但 POSTGRES_PASSWORD 为空")
+        if errors:
+            raise ValueError(
+                "生产模式配置不安全，启动拒绝：\n  - " + "\n  - ".join(errors)
+            )
+        return self
 
     @property
     def database_url(self) -> str:
@@ -75,5 +190,5 @@ class Settings(BaseModel):
         return f"redis://{auth}{self.redis_host}:{self.redis_port}/{self.redis_db}"
 
 
-settings = Settings()
+settings = Settings.from_env()
 Path(settings.sqlite_path).parent.mkdir(parents=True, exist_ok=True)

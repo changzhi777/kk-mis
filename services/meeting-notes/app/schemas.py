@@ -3,7 +3,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class MeetingStatus(str, Enum):
@@ -77,8 +77,7 @@ class MeetingResponse(BaseModel):
     completed_at: Optional[datetime] = None
     error_message: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class MeetingListResponse(BaseModel):

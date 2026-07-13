@@ -59,7 +59,7 @@ const icon = useMenuIcon()
 const menus = computed(() => userStore.menus)
 // 默认展开所有分组
 const openedIds = computed(() =>
-  menus.value.filter((m: any) => m.children && m.children.length).map((m: any) => String(m.id))
+  menus.value.filter((m) => m.children && m.children.length).map((m) => String(m.id))
 )
 </script>
 

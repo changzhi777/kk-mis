@@ -64,6 +64,7 @@
 </template>
 
 <script setup lang="ts">
+import { getApiError } from '@/api/admin'
 import { ref, watch, onMounted } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
@@ -88,8 +89,8 @@ async function load() {
     const resp = await meetingsApi.list(page.value, pageSize.value, statusFilter.value || undefined)
     meetings.value = resp.items
     total.value = resp.total
-  } catch (e: any) {
-    ElMessage.error('加载失败：' + e.message)
+  } catch (e: unknown) {
+    ElMessage.error(getApiError(e, '加载失败'))
   } finally {
     loading.value = false
   }
@@ -105,8 +106,8 @@ async function handleDelete(id: number) {
     await meetingsApi.remove(id)
     ElMessage.success('已删除')
     load()
-  } catch (e: any) {
-    ElMessage.error('删除失败：' + e.message)
+  } catch (e: unknown) {
+    ElMessage.error(getApiError(e, '删除失败'))
   }
 }
 

@@ -65,7 +65,7 @@ const loading = ref(false)
 const loadingFlows = ref(false)
 
 const statusText = (x: string) => ({ pending: '审批中', approved: '已通过', rejected: '已驳回' }[x] || x)
-const statusType = (x: string) => ({ pending: 'warning', approved: 'success', rejected: 'danger' }[x] || undefined) as any
+const statusType = (x: string) => ({ pending: 'warning', approved: 'success', rejected: 'danger' } as const)[x]
 
 function parseNodes(cfg: string) {
   try { return JSON.parse(cfg) } catch { return [] }
@@ -80,7 +80,7 @@ async function load() {
   if (tab.value === 'flows') {
     loadingFlows.value = true
     try {
-      const f = await adminApi.resource('/api/v1/oa/approvals/flows').list().catch(() => ({ items: [] as any[] }))
+      const f = await adminApi.resource('/api/v1/oa/approvals/flows').list().catch(() => ({ items: [] as never[] }))
       flows.value = f.items
     } finally { loadingFlows.value = false }
     return
@@ -97,14 +97,14 @@ async function load() {
 }
 
 async function doApprove(id: number) {
-  const { value } = await ElMessageBox.prompt('审批意见（可选）', '通过审批', { inputType: 'textarea' }).catch(() => ({ value: null as any }))
+  const { value } = await ElMessageBox.prompt('审批意见（可选）', '通过审批', { inputType: 'textarea' }).catch(() => ({ value: null as string | null }))
   if (value === null) return
   await adminApi.approveInstance(id, value || undefined)
   ElMessage.success('已通过')
   load()
 }
 async function doReject(id: number) {
-  const { value } = await ElMessageBox.prompt('驳回理由', '驳回', { inputType: 'textarea' }).catch(() => ({ value: null as any }))
+  const { value } = await ElMessageBox.prompt('驳回理由', '驳回', { inputType: 'textarea' }).catch(() => ({ value: null as string | null }))
   if (value === null) return
   await adminApi.rejectInstance(id, value)
   ElMessage.success('已驳回')

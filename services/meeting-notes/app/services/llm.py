@@ -2,10 +2,16 @@
 """
 import json
 import logging
+import re
 from typing import Any, Dict, List, Optional
 
 import httpx
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from ..config import settings
 
@@ -13,7 +19,11 @@ logger = logging.getLogger(__name__)
 
 
 class LLMError(Exception):
-    """LLM 调用错误"""
+    """LLM 调用错误（不可重试：HTTP 4xx 业务错误 / JSON 解析失败）"""
+
+
+class LLMNetworkError(LLMError):
+    """LLM 网络错误（可重试：连接超时 / 5xx 服务端临时故障）"""
 
 
 class LLMClient:
@@ -42,7 +52,11 @@ class LLMClient:
         if not self.api_key:
             raise ValueError(f"API key not configured for provider: {provider}")
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10))
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(min=1, max=10),
+        retry=retry_if_exception_type(LLMNetworkError),
+    )
     async def chat(
         self,
         messages: List[Dict[str, str]],
@@ -80,14 +94,20 @@ class LLMClient:
         async with httpx.AsyncClient(timeout=180.0) as client:
             try:
                 resp = await client.post(url, json=payload, headers=headers)
-                if resp.status_code != 200:
-                    raise LLMError(
-                        f"HTTP {resp.status_code}: {resp.text[:500]}"
-                    )
-                data = resp.json()
-                return data["choices"][0]["message"]["content"]
             except httpx.HTTPError as e:
-                raise LLMError(f"Network error: {e}")
+                # 网络层错误（连接/超时）→ 可重试
+                raise LLMNetworkError(f"Network error: {e}") from e
+            # 5xx 服务端临时故障 → 可重试；4xx 业务错误 → 不重试
+            if resp.status_code >= 500:
+                raise LLMNetworkError(
+                    f"HTTP {resp.status_code}: {resp.text[:500]}"
+                )
+            if resp.status_code != 200:
+                raise LLMError(
+                    f"HTTP {resp.status_code}: {resp.text[:500]}"
+                )
+            data = resp.json()
+            return data["choices"][0]["message"]["content"]
 
     async def chat_json(
         self,
@@ -117,13 +137,14 @@ class LLMClient:
             response_format=response_format,
         )
 
-        # 提取 JSON
+        # 提取 JSON（兼容 ```json ... ``` / ``` ... ``` / 单行 / 无闭合 等格式）
         response = response.strip()
-        # 处理 ```json ... ``` 包裹
-        if response.startswith("```"):
-            lines = response.split("\n")
-            response = "\n".join(lines[1:-1]) if lines[-1].startswith("```") else "\n".join(lines[1:])
-            response = response.strip()
+        fenced = re.search(r"```(?:json)?\s*(.*?)\s*```", response, re.DOTALL)
+        if fenced:
+            response = fenced.group(1).strip()
+        elif response.startswith("```"):
+            # 仅有开头 ``` 无闭合，剥去首行
+            response = response.split("\n", 1)[-1].strip()
 
         try:
             return json.loads(response)

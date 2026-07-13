@@ -1,6 +1,6 @@
 """Pydantic 数据模型"""
 from typing import List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Segment(BaseModel):
@@ -22,24 +22,23 @@ class TranscriptionResult(BaseModel):
     model: str = Field(..., description="使用的模型")
     segments: List[Segment] = Field(default_factory=list, description="分段详情")
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "text": "今天我们讨论一下 V2.0 的需求优先级",
-                "language": "zh",
-                "duration": 60.5,
-                "model": "mlx-community/whisper-large-v3-turbo",
-                "segments": [
-                    {
-                        "id": 0,
-                        "start": 0.0,
-                        "end": 5.2,
-                        "text": "今天我们讨论一下 V2.0 的需求优先级",
-                        "speaker": None,
-                    }
-                ],
-            }
-        }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "text": "今天我们讨论一下 V2.0 的需求优先级",
+            "language": "zh",
+            "duration": 60.5,
+            "model": "mlx-community/whisper-large-v3-turbo",
+            "segments": [
+                {
+                    "id": 0,
+                    "start": 0.0,
+                    "end": 5.2,
+                    "text": "今天我们讨论一下 V2.0 的需求优先级",
+                    "speaker": None,
+                }
+            ],
+        },
+    })
 
 
 class HealthResponse(BaseModel):

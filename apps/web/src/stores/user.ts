@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import adminApi from '@/api/admin'
 import type { LoginResult, UserInfo } from '@/api/admin'
+import type { MenuItem } from '@/types'
 
 const TOKEN_KEY = 'kk-mis-admin-token'
 const REFRESH_KEY = 'kk-mis-admin-refresh'
@@ -15,7 +16,7 @@ export const useUserStore = defineStore('user', () => {
       return raw ? (JSON.parse(raw) as UserInfo) : null
     })()
   )
-  const menus = ref<any[]>([])
+  const menus = ref<MenuItem[]>([])
 
   const isLogin = computed(() => !!token.value)
   const roles = computed(() => userInfo.value?.roles || [])

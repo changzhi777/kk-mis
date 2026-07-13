@@ -1,4 +1,4 @@
-/* 侧边栏全局样式（el-menu 深色覆盖，统一走 token） */
+/* 侧边栏全局样式（浅色主题 + 青色 active 左边条） */
 .app-sidebar {
   background: var(--c-sidebar-bg);
   color: var(--c-sidebar-text);
@@ -10,14 +10,26 @@
 }
 .app-sidebar .el-menu-item {
   color: var(--c-sidebar-text);
+  position: relative;
 }
 .app-sidebar .el-menu-item:hover {
   background: var(--c-sidebar-item-hover);
   color: var(--c-sidebar-text-active);
 }
+/* active：左侧 3px 青色边条 + 浅青底 + 青色文字（替代深色块） */
 .app-sidebar .el-menu-item.is-active {
   color: var(--c-sidebar-text-active);
   background: var(--c-sidebar-item-active);
+}
+.app-sidebar .el-menu-item.is-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--c-sidebar-text-active);
 }
 .app-sidebar .el-menu-item.is-active .el-icon {
   color: var(--c-sidebar-icon-active);

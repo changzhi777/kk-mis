@@ -24,19 +24,19 @@
 import { onMounted, reactive, ref } from 'vue'
 import { Download, Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import adminApi from '@/api/admin'
+import adminApi, { getApiError } from '@/api/admin'
 const items = ref<any[]>([]), loading = ref(false), dv = ref(false), s = ref(false)
 const form = reactive<any>({ amount: 100, category: 'office', expense_date: '', reason: '' })
 const api = adminApi.resource('/api/v1/oa/expenses')
 const catText = (c: string) => ({ travel: '差旅', office: '办公', entertainment: '招待', other: '其他' }[c] || c)
 const statusText = (x: string) => ({ pending: '审批中', approved: '已批准', rejected: '已驳回' }[x] || x)
-const statusType = (x: string) => ({ pending: 'warning', approved: 'success', rejected: 'danger' }[x] || '') as any
+const statusType = (x: string) => ({ pending: 'warning', approved: 'success', rejected: 'danger' } as const)[x]
 async function load() { loading.value = true; try { items.value = (await api.list()).items } finally { loading.value = false } }
 function open() { Object.assign(form, { amount: 100, category: 'office', expense_date: '', reason: '' }); dv.value = true }
 async function save() {
   s.value = true
   try { await api.create(form); ElMessage.success('已提交，等待审批'); dv.value = false; load() }
-  catch (e: any) { ElMessage.error(e.response?.data?.detail || '失败') } finally { s.value = false }
+  catch (e: unknown) { ElMessage.error(getApiError(e, '失败')) } finally { s.value = false }
 }
 async function exportCsv() {
   try {

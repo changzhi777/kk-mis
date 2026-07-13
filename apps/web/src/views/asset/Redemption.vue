@@ -32,7 +32,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import adminApi from '@/api/admin'
+import adminApi, { getApiError } from '@/api/admin'
 import TimeText from '@/components/TimeText.vue'
 const form = reactive({ card_no: '', method: 'scan', password: '' })
 const s = ref(false), items = ref<any[]>([]), loading = ref(false), page = ref(1), pageSize = ref(20), total = ref(0)
@@ -45,7 +45,7 @@ async function redeem() {
     ElMessage.success(`核销成功 ¥${Number(r.amount).toFixed(2)}`)
     form.card_no = ''; form.password = ''
     loadRecords()
-  } catch (e: any) { ElMessage.error(e.response?.data?.detail || '核销失败') } finally { s.value = false }
+  } catch (e: unknown) { ElMessage.error(getApiError(e, '核销失败')) } finally { s.value = false }
 }
 async function loadRecords() {
   loading.value = true

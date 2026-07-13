@@ -29,7 +29,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import adminApi from '@/api/admin'
+import adminApi, { getApiError } from '@/api/admin'
 const items = ref<any[]>([]), loading = ref(false), dv = ref(false), s = ref(false)
 const form = reactive<any>({ id: null, name: '', type: 'vip', face_value: 0, valid_days: 365, remark: '', status: true, fields_config: null })
 const api = adminApi.resource('/api/v1/asset/card-types')
@@ -37,7 +37,7 @@ const opts: [string, string][] = [['vip', 'VIP卡'], ['voucher', '代金券'], [
 const typeText = (t: string) => opts.find((o) => o[0] === t)?.[1] || t
 async function load() { loading.value = true; try { items.value = (await api.list()).items } finally { loading.value = false } }
 function open(row?: any) { Object.assign(form, row || { id: null, name: '', type: 'vip', face_value: 0, valid_days: 365, remark: '', status: true, fields_config: null }); dv.value = true }
-async function save() { s.value = true; try { if (form.id) await api.update(form.id, form); else await api.create(form); ElMessage.success('保存成功'); dv.value = false; load() } catch (e: any) { ElMessage.error(e.response?.data?.detail || '失败') } finally { s.value = false } }
+async function save() { s.value = true; try { if (form.id) await api.update(form.id, form); else await api.create(form); ElMessage.success('保存成功'); dv.value = false; load() } catch (e: unknown) { ElMessage.error(getApiError(e, '失败')) } finally { s.value = false } }
 async function remove(id: number) { await api.remove(id); ElMessage.success('已删除'); load() }
 onMounted(load)
 </script>

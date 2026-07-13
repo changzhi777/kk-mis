@@ -45,14 +45,23 @@
 import { onMounted, reactive, ref } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import adminApi from '@/api/admin'
+import adminApi, { getApiError } from '@/api/admin'
+import type { Announcement } from '@/types'
 import TimeText from '@/components/TimeText.vue'
 
-const items = ref<any[]>([]), loading = ref(false), dv = ref(false), vv = ref(false), s = ref(false), viewing = ref<any>(null)
-const form = reactive<any>({ id: null, title: '', content: '', scope: 'all', status: 'draft' })
-const api = adminApi.resource('/api/v1/oa/announcements')
+interface AnnouncementForm {
+  id: number | null
+  title: string
+  content: string
+  scope: string
+  status: string
+}
+
+const items = ref<Announcement[]>([]), loading = ref(false), dv = ref(false), vv = ref(false), s = ref(false), viewing = ref<Announcement | null>(null)
+const form = reactive<AnnouncementForm>({ id: null, title: '', content: '', scope: 'all', status: 'draft' })
+const api = adminApi.resource<Announcement>('/api/v1/oa/announcements')
 const statusText = (x: string) => ({ draft: '草稿', published: '已发布', archived: '已归档' }[x] || x)
-const statusType = (x: string) => ({ draft: 'info', published: 'success', archived: 'warning' }[x] || '') as any
+const statusType = (x: string) => ({ draft: 'info', published: 'success', archived: 'warning' } as const)[x]
 
 async function load() { loading.value = true; try { items.value = (await api.list()).items } finally { loading.value = false } }
 function open() { Object.assign(form, { id: null, title: '', content: '', scope: 'all', status: 'draft' }); dv.value = true }
@@ -63,9 +72,9 @@ async function save(publish: boolean) {
     if (publish) await adminApi.publishAnnouncement(r.id)
     ElMessage.success(publish ? '已发布' : '已存草稿')
     dv.value = false; load()
-  } catch (e: any) { ElMessage.error(e.response?.data?.detail || '失败') } finally { s.value = false }
+  } catch (e: unknown) { ElMessage.error(getApiError(e, '失败')) } finally { s.value = false }
 }
-function view(row: any) { viewing.value = row; vv.value = true }
+function view(row: Record<string, unknown>) { viewing.value = row as unknown as Announcement; vv.value = true }
 async function publish(id: number) { await adminApi.publishAnnouncement(id); ElMessage.success('已发布'); load() }
 async function archive(id: number) { await adminApi.archiveAnnouncement(id); ElMessage.success('已归档'); load() }
 async function remove(id: number) { await api.remove(id); ElMessage.success('已删除'); load() }

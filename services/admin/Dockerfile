@@ -1,0 +1,20 @@
+# kk-mis admin — 企业管理 + 财务 + 资产 + 代理 + OA (:8300)
+FROM python:3.12-slim
+
+ENV TZ=Asia/Shanghai \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /app
+COPY requirements.txt ./
+RUN pip install -r requirements.txt
+
+COPY app/ ./app/
+
+EXPOSE 8300
+
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+    CMD python -c "import httpx; httpx.get('http://127.0.0.1:8300/health', timeout=3).raise_for_status()" || exit 1
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8300", "--log-level", "info"]

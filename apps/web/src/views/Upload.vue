@@ -80,6 +80,7 @@
 </template>
 
 <script setup lang="ts">
+import { getApiError } from '@/api/admin'
 import { ref, reactive, onMounted } from 'vue'
 import { UploadFilled, Document } from '@element-plus/icons-vue'
 import type { UploadFile, UploadInstance } from 'element-plus'
@@ -135,8 +136,8 @@ async function handleSubmit() {
       }
     })
     ElMessage.success('上传成功，处理已启动')
-  } catch (e: any) {
-    ElMessage.error(`上传失败：${e.message}`)
+  } catch (e: unknown) {
+    ElMessage.error(getApiError(e, '上传失败'))
   } finally {
     uploading.value = false
   }

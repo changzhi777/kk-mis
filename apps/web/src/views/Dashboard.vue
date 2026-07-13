@@ -73,7 +73,7 @@ const counts = reactive<any>({ announcements: 0 })
 const me = reactive<any>({ clock_in: null, clock_out: null, attendance_status: null, month_expense: 0, report_count: 0 })
 
 const attText = (x: string) => ({ normal: '正常', late: '迟到', early: '早退' }[x] || x)
-const attType = (x: string) => ({ normal: 'success', late: 'warning', early: 'danger' }[x] || undefined) as any
+const attType = (x: string) => ({ normal: 'success', late: 'warning', early: 'danger' } as const)[x]
 
 async function load() {
   const d = await adminApi.resource('/api/v1/dashboard').list()

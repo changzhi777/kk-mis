@@ -4,6 +4,25 @@
       <template #content>
         <span class="page-title">{{ meeting?.title || '加载中...' }}</span>
         <StatusTag v-if="meeting" :status="meeting.status" size="small" style="margin-left: 8px" />
+        <div v-if="meeting" class="header-actions">
+          <el-button
+            size="small"
+            :icon="CopyDocument"
+            :disabled="!canExport"
+            @click="copyFullText"
+          >
+            复制全文
+          </el-button>
+          <el-button
+            size="small"
+            type="primary"
+            :icon="Download"
+            :disabled="!canExport"
+            @click="exportMarkdown"
+          >
+            导出 Markdown
+          </el-button>
+        </div>
       </template>
     </el-page-header>
 
@@ -100,10 +119,12 @@
 </template>
 
 <script setup lang="ts">
+import { getApiError } from '@/api/admin'
 import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import {
   Document, List, Checked, Finished, ChatLineRound, InfoFilled, Refresh,
+  CopyDocument, Download,
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import meetingsApi from '@/api/meetings'
@@ -129,8 +150,8 @@ async function load() {
       clearInterval(pollTimer)
       pollTimer = null
     }
-  } catch (e: any) {
-    ElMessage.error('加载失败：' + e.message)
+  } catch (e: unknown) {
+    ElMessage.error(getApiError(e, '加载失败'))
   } finally {
     loading.value = false
   }
@@ -141,6 +162,103 @@ function formatSegTime(s: number) {
   const m = Math.floor(s / 60)
   const sec = Math.floor(s % 60)
   return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
+}
+
+// ── 复制 / 导出 ────────────────────────────────────────────────────────
+
+// 只有 completed/failed 才允许复制导出（processing 中内容会变）
+const canExport = computed(() => {
+  const s = meeting.value?.status
+  return s === 'completed' || s === 'failed'
+})
+
+function buildMarkdown(): string {
+  const m = meeting.value!
+  const lines: string[] = []
+  lines.push(`# ${m.title}`, '')
+  lines.push(
+    `**状态**：${m.status}  `,
+    `**时长**：${m.duration ? m.duration.toFixed(1) + ' 秒' : '-'}  `,
+    `**语言**：${m.language === 'zh' ? '中文' : m.language || '-'}  `,
+    `**创建**：${m.created_at || '-'}  `,
+    `**完成**：${m.completed_at || '-'}`,
+    ''
+  )
+
+  if (m.summary) {
+    lines.push('## 摘要', '', m.summary, '')
+  }
+  if (m.key_points?.length) {
+    lines.push('## 核心要点', '', ...m.key_points.map((p) => `- ${p}`), '')
+  }
+  if (m.decisions?.length) {
+    lines.push('## 决策事项', '', ...m.decisions.map((d) => `- ${d}`), '')
+  }
+  if (m.action_items?.length) {
+    lines.push(
+      '## 行动项',
+      '',
+      '| 任务 | 负责人 | 截止 | 优先级 |',
+      '|------|--------|------|--------|',
+      ...m.action_items.map(
+        (a) =>
+          `| ${a.task} | ${a.owner || '-'} | ${a.deadline || '-'} | ${a.priority || '-'} |`
+      ),
+      ''
+    )
+  }
+  if (m.segments?.length) {
+    lines.push('## 完整转写', '')
+    for (const seg of m.segments) {
+      lines.push(`### ${formatSegTime(seg.start)} → ${formatSegTime(seg.end)}`, '')
+      lines.push(seg.text, '')
+    }
+  } else if (m.raw_transcript) {
+    lines.push('## 完整转写', '', '```', m.raw_transcript, '```', '')
+  }
+  if (m.error_message) {
+    lines.push('## 错误信息', '', m.error_message, '')
+  }
+  return lines.join('\n')
+}
+
+async function copyFullText() {
+  const md = buildMarkdown()
+  try {
+    await navigator.clipboard.writeText(md)
+    ElMessage.success('已复制到剪贴板（Markdown 格式）')
+  } catch (e: unknown) {
+    // 降级：选中文本让用户手动复制
+    const ta = document.createElement('textarea')
+    ta.value = md
+    document.body.appendChild(ta)
+    ta.select()
+    try {
+      document.execCommand('copy')
+      ElMessage.success('已复制（降级路径）')
+    } catch {
+      ElMessage.error('复制失败，请手动复制')
+    } finally {
+      document.body.removeChild(ta)
+    }
+  }
+}
+
+function exportMarkdown() {
+  const md = buildMarkdown()
+  const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  // 文件名：标题 + 日期 + id
+  const safeTitle = (meeting.value?.title || 'meeting').replace(/[\\/:*?"<>|]/g, '_')
+  const date = new Date().toISOString().slice(0, 10)
+  a.href = url
+  a.download = `${safeTitle}_${date}.md`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+  ElMessage.success('Markdown 已下载')
 }
 
 watch(() => route.params.id, load)
@@ -160,6 +278,12 @@ onUnmounted(() => {
 .page-title {
   font-weight: 600;
   font-size: 16px;
+}
+.header-actions {
+  display: inline-flex;
+  gap: 8px;
+  margin-left: 16px;
+  vertical-align: middle;
 }
 .card-title {
   display: flex;

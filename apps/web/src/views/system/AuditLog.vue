@@ -27,7 +27,7 @@ import TimeText from '@/components/TimeText.vue'
 const items = ref<any[]>([]), loading = ref(false), page = ref(1), pageSize = ref(20), total = ref(0)
 const f = reactive({ method: '', path: '' })
 const api = adminApi.resource('/api/v1/audit')
-const methodType = (m: string) => ({ POST: 'success', PUT: 'warning', DELETE: 'danger' }[m] || '') as any
+const methodType = (m: string) => ({ POST: 'success', PUT: 'warning', DELETE: 'danger' } as const)[m]
 async function load() {
   loading.value = true
   try {

@@ -60,7 +60,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import adminApi from '@/api/admin'
+import adminApi, { getApiError } from '@/api/admin'
 
 const items = ref<any[]>([])
 const loading = ref(false)
@@ -72,7 +72,7 @@ const cur = ref<any>(null)
 const api = adminApi.resource('/api/v1/oa/reports')
 
 const typeText = (t: string) => ({ daily: '日报', weekly: '周报', monthly: '月报' }[t] || t)
-const typeTag = (t: string) => ({ daily: '', weekly: 'warning', monthly: 'success' }[t] || undefined) as any
+const typeTag = (t: string) => ({ weekly: 'warning', monthly: 'success' } as const)[t]
 
 async function load() {
   loading.value = true
@@ -99,9 +99,7 @@ async function save() {
     ElMessage.success('已提交')
     dv.value = false
     load()
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '失败')
-  } finally { s.value = false }
+  } catch (e: unknown) { ElMessage.error(getApiError(e, '失败')) } finally { s.value = false }
 }
 
 function view(row: any) {

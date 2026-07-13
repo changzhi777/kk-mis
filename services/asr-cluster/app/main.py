@@ -1,38 +1,37 @@
 """ASR 集群管理 API"""
 import asyncio
 import logging
+from contextlib import asynccontextmanager
 from typing import List
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel
 
 from .client import get_client
 from .nodes import ASRNode, get_monitor, get_registry
+from .security import verify_api_key
 
 logging.basicConfig(
     level="INFO", format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 )
 logger = logging.getLogger("asr-cluster")
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """启动→初始化心跳监控；关闭→停止监控。"""
+    monitor = get_monitor()
+    await monitor.start()
+    logger.info("ASR Cluster Manager started")
+    yield
+    await monitor.stop()
+
+
 app = FastAPI(
     title="ASR Cluster Manager",
     description="多 MLX 节点 ASR 集群管理",
     version="1.0.0",
+    lifespan=lifespan,
 )
-
-
-@app.on_event("startup")
-async def startup_event():
-    """启动时初始化监控"""
-    monitor = get_monitor()
-    await monitor.start()
-    logger.info("ASR Cluster Manager started")
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    monitor = get_monitor()
-    await monitor.stop()
 
 
 class RegisterNodeRequest(BaseModel):
@@ -70,8 +69,11 @@ async def list_nodes() -> List[dict]:
 
 
 @app.post("/nodes/register", response_model=RegisterNodeResponse)
-async def register_node(req: RegisterNodeRequest):
-    """注册新节点"""
+async def register_node(
+    req: RegisterNodeRequest,
+    _key: str = Depends(verify_api_key),
+):
+    """注册新节点（需 X-API-Key）"""
     registry = get_registry()
     if registry.get(req.id):
         raise HTTPException(400, f"Node {req.id} already exists")
@@ -92,8 +94,11 @@ async def register_node(req: RegisterNodeRequest):
 
 
 @app.delete("/nodes/{node_id}")
-async def deregister_node(node_id: str):
-    """注销节点"""
+async def deregister_node(
+    node_id: str,
+    _key: str = Depends(verify_api_key),
+):
+    """注销节点（需 X-API-Key）"""
     registry = get_registry()
     if not registry.get(node_id):
         raise HTTPException(404, f"Node {node_id} not found")
@@ -102,7 +107,11 @@ async def deregister_node(node_id: str):
 
 
 @app.post("/transcribe")
-async def transcribe_dispatch(audio_path: str, language: str = None):
+async def transcribe_dispatch(
+    audio_path: str,
+    language: str = None,
+    _key: str = Depends(verify_api_key),
+):
     """通过集群转写（自动负载均衡）"""
     from pathlib import Path
 

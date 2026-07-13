@@ -66,3 +66,16 @@ def test_redeem_twice_fails(client, auth_header):
     client.post("/admin/api/v1/asset/redemptions/redeem", json={"card_no": card_no, "method": "scan"}, headers=auth_header)
     r2 = client.post("/admin/api/v1/asset/redemptions/redeem", json={"card_no": card_no, "method": "scan"}, headers=auth_header)
     assert r2.status_code == 400
+
+
+def test_card_type_supports_all_4_kinds(client, auth_header):
+    """卡券类型覆盖 4 种（VIP / voucher代金 / redemption兑换 / stored储值）— 决策落地验证。"""
+    h = auth_header
+    for kind in ["vip", "voucher", "exchange", "stored"]:
+        r = client.post(
+            "/admin/api/v1/asset/card-types",
+            json={"name": f"测试-{kind}", "type": kind},
+            headers=h,
+        )
+        assert r.status_code == 200, f"类型 {kind} 建失败: {r.text}"
+        assert r.json()["type"] == kind

@@ -25,6 +25,13 @@ const router = createRouter({
       component: () => import('@/views/oauth/Callback.vue'),
       meta: { public: true, title: '登录中' },
     },
+    // 防伪公开核销页（2026-07-13 决策 #3 重构）
+    {
+      path: '/verify/:code',
+      name: 'verify-card',
+      component: () => import('@/views/asset/Verify.vue'),
+      meta: { public: true, title: '防伪核验' },
+    },
     {
       path: '/',
       name: 'home',
@@ -54,6 +61,13 @@ const router = createRouter({
       name: 'detail',
       component: () => import('@/views/Detail.vue'),
       meta: { title: '会议详情', group: 'meeting' },
+    },
+    // OA Agent（独立服务，2026-07-12 接入）
+    {
+      path: '/oa-agent',
+      name: 'oa-agent',
+      component: () => import('@/views/oa/OaAgent.vue'),
+      meta: { title: 'OA Agent', group: 'oa', permission: 'oa_agent' },
     },
     // 企业管理（阶段5 填充具体页面）
     {
@@ -172,12 +186,12 @@ const router = createRouter({
       component: () => import('@/views/asset/Redemption.vue'),
       meta: { title: '卡券核销', group: 'asset', permission: 'asset:card:list' },
     },
-    // 代理销售
+    // 代理销售（RegionList 替代原 AgentList，2026-07-13 决策 #3 重构后统一入口）
     {
-      path: '/agent/agent',
-      name: 'agent-agent',
-      component: () => import('@/views/agent/AgentList.vue'),
-      meta: { title: '代理管理', group: 'agent', permission: 'agent:list' },
+      path: '/agent/region',
+      name: 'agent-region',
+      component: () => import('@/views/agent/RegionList.vue'),
+      meta: { title: '区域代理', group: 'agent', permission: 'agent:list' },
     },
     {
       path: '/agent/order',

@@ -1,0 +1,72 @@
+# kk-mis 全栈 dev 一键启动（asr-cluster 单独 compose，见 services/asr-cluster/）
+#
+# 用法：
+#   1. cp services/admin/.env.example services/admin/.env
+#   2. cp services/meeting-notes/.env.example services/meeting-notes/.env
+#   3. cp services/asr-cluster/.env.example services/asr-cluster/.env  # 可选
+#   4. docker compose up -d
+#   5. docker compose logs -f
+#   6. docker compose down
+#
+# 生产部署：仍走 scp 直传模式（详见 memory/project-mis-deploy.md）
+
+services:
+  meeting-notes:
+    build:
+      context: ./services/meeting-notes
+      dockerfile: Dockerfile
+    image: kk-mis/meeting-notes:1.0.0
+    container_name: kk-mis-meeting-notes
+    restart: unless-stopped
+    ports:
+      - "8200:8200"
+    env_file:
+      - ./services/meeting-notes/.env
+    volumes:
+      # SQLite 数据持久化
+      - mn-storage:/app/storage
+      # 上传音频持久化
+      - mn-uploads:/app/storage/uploads
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://127.0.0.1:8200/health', timeout=3).raise_for_status()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  admin:
+    build:
+      context: ./services/admin
+      dockerfile: Dockerfile
+    image: kk-mis/admin:1.0.0
+    container_name: kk-mis-admin
+    restart: unless-stopped
+    ports:
+      - "8300:8300"
+    env_file:
+      - ./services/admin/.env
+    volumes:
+      - admin-storage:/app/storage
+    depends_on:
+      - meeting-notes
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://127.0.0.1:8300/health', timeout=3).raise_for_status()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s  # admin 启动时 init_db + seed 时间较长
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  mn-storage:
+  mn-uploads:
+  admin-storage:

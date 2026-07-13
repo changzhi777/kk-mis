@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_session
 from ..deps import require_permission
+from .. import cache
 from ..models import Role, User, user_roles
 from ..schemas.enterprise import UserCreate, UserOut, UserResetPassword, UserUpdate
 from ..utils import to_csv
@@ -144,6 +145,8 @@ async def update_user(
         for rid in req.role_ids:
             await session.execute(user_roles.insert().values(user_id=user_id, role_id=rid))
     await session.commit()
+    if req.role_ids is not None:
+        await cache.invalidate_user(user_id)  # 角色变更 → 失效权限/菜单缓存
     await session.refresh(u)
     await _attach_roles(u, session)
     return UserOut.model_validate(u)

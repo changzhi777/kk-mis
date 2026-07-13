@@ -26,20 +26,20 @@
 import { onMounted, reactive, ref } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import adminApi from '@/api/admin'
+import adminApi, { getApiError } from '@/api/admin'
 import TimeText from '@/components/TimeText.vue'
 const items = ref<any[]>([]), loading = ref(false), dv = ref(false), s = ref(false)
 const form = reactive<any>({ type: 'personal', start_date: '', end_date: '', days: 1, reason: '' })
 const api = adminApi.resource('/api/v1/oa/leaves')
 const typeText = (t: string) => ({ personal: '事假', sick: '病假', annual: '年假' }[t] || t)
 const statusText = (x: string) => ({ pending: '审批中', approved: '已批准', rejected: '已驳回' }[x] || x)
-const statusType = (x: string) => ({ pending: 'warning', approved: 'success', rejected: 'danger' }[x] || '') as any
+const statusType = (x: string) => ({ pending: 'warning', approved: 'success', rejected: 'danger' } as const)[x]
 async function load() { loading.value = true; try { items.value = (await api.list()).items } finally { loading.value = false } }
 function open() { Object.assign(form, { type: 'personal', start_date: '', end_date: '', days: 1, reason: '' }); dv.value = true }
 async function save() {
   s.value = true
   try { await api.create(form); ElMessage.success('已提交，等待审批'); dv.value = false; load() }
-  catch (e: any) { ElMessage.error(e.response?.data?.detail || '失败') } finally { s.value = false }
+  catch (e: unknown) { ElMessage.error(getApiError(e, '失败')) } finally { s.value = false }
 }
 onMounted(load)
 </script>

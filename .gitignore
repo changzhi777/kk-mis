@@ -114,3 +114,6 @@ services/*/storage/outputs/
 services/*/storage/*.db
 services/*/storage/*.sqlite
 services/*/.cache/
+# AI 工作流缓存 + 测试产物（2026-07-14 整理）
+.zcf/
+apps/web/test-results/

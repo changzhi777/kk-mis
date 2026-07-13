@@ -38,8 +38,12 @@ export default defineConfig({
     port: 5173,
     host: '0.0.0.0',
     proxy: {
+      // meeting-notes（音频上传 / ASR / LLM）
       '/api': { target: 'http://localhost:8000', changeOrigin: true },
       '/llm': { target: 'http://localhost:8000', changeOrigin: true },
+      // admin（企业/财务/资产/代理/OA，含 oa-agent bridge → :9001）
+      // dev 时需要同时启动 admin :8300（已含 oa_agent_bridge 转发到 :9001）
+      '/admin': { target: 'http://localhost:8300', changeOrigin: true },
     },
   },
 })
