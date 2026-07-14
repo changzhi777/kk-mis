@@ -29,6 +29,7 @@ class Agent(Base):
     region_name = Column(String(64), nullable=True)  # '上海' / '北京' / '广州'
     # 兼容字段：commission_rate 上限 ≤ 0.5（决策 #3 合规边界），用于单次返佣比例
     commission_rate = Column(Numeric(5, 4), default=Decimal("0"))
+    promo_code = Column(String(16), unique=True, nullable=True, index=True)  # A1 推广码（8位，create 时生成）
     status = Column(Boolean, default=True)
     remark = Column(String(200), nullable=True)
     created_at = Column(DateTime, default=utcnow)

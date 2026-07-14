@@ -48,6 +48,16 @@ async def create_agent(
     if existing:
         raise HTTPException(400, f"区域 {req.region_code} 已有代理（{existing.name or existing.id}）")
     a = Agent(**req.model_dump())
+    # A1 推广码（8 位 hex，冲突重试 5 次）
+    import secrets
+    for _ in range(5):
+        code = secrets.token_hex(4).upper()
+        dup = (
+            await session.execute(select(Agent).where(Agent.promo_code == code))
+        ).scalar_one_or_none()
+        if not dup:
+            a.promo_code = code
+            break
     session.add(a)
     await session.commit()
     await session.refresh(a)

@@ -54,6 +54,7 @@ class AgentOut(BaseModel):
     region_code: str
     region_name: Optional[str] = None
     commission_rate: Decimal
+    promo_code: Optional[str] = None  # A1 推广码
     status: bool
     remark: Optional[str] = None
     created_at: datetime
