@@ -71,4 +71,10 @@ onMounted(() => {
 .info h3 { margin: 0 0 6px; font-size: 16px; color: var(--el-text-color-primary); }
 .summary { margin: 0 0 8px; font-size: 13px; color: var(--el-text-color-secondary); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .meta { display: flex; gap: 6px; flex-wrap: wrap; }
+/* 移动端 H5 */
+@media (max-width: 768px) {
+  .card { flex-direction: column; }
+  .cover { width: 100%; height: 160px; }
+  .info h3 { font-size: 15px; }
+}
 </style>

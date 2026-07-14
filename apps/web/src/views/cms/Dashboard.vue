@@ -8,6 +8,7 @@
       <el-col :span="6"><div class="stat"><div class="num">¥{{ n(stats?.revenue) }}</div><div class="lbl">已支付收入（{{ stats?.orders_paid || 0 }} 单）</div></div></el-col>
     </el-row>
     <div ref="chartEl" class="chart"></div>
+    <div ref="funnelEl" class="chart"></div>
   </el-card>
 </template>
 <script setup lang="ts">
@@ -19,6 +20,7 @@ import type { DashboardStats } from '@/api/cms'
 const stats = ref<DashboardStats | null>(null)
 const loading = ref(false)
 const chartEl = ref<HTMLElement | null>(null)
+const funnelEl = ref<HTMLElement | null>(null)
 const n = (v: number | string | undefined) => Number(v || 0).toFixed(2)
 
 async function load() {
@@ -26,6 +28,7 @@ async function load() {
   try {
     stats.value = await cmsApi.getDashboard()
     renderChart()
+    renderFunnel()
   } finally {
     loading.value = false
   }
@@ -50,6 +53,29 @@ function renderChart() {
         data: stats.value.top_products.map((p) => p.view_count),
         itemStyle: { color: '#0d9488', borderRadius: [4, 4, 0, 0] },
         barMaxWidth: 48,
+      },
+    ],
+  })
+}
+
+function renderFunnel() {
+  if (!funnelEl.value || !stats.value) return
+  const s = stats.value
+  echarts.init(funnelEl.value).setOption({
+    title: { text: '转化漏斗（浏览→询价→订单→支付）', left: 'center', textStyle: { fontSize: 14 } },
+    tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+    series: [
+      {
+        type: 'funnel',
+        data: [
+          { value: s.views_total, name: '浏览' },
+          { value: s.leads_total, name: '询价线索' },
+          { value: s.orders_total, name: '订单' },
+          { value: s.orders_paid, name: '已支付' },
+        ],
+        itemStyle: { borderColor: '#fff', borderWidth: 1 },
+        label: { show: true, position: 'inside' },
+        color: ['#0d9488', '#14b8a6', '#2dd4bf', '#5eead4'],
       },
     ],
   })

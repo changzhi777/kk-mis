@@ -528,4 +528,16 @@ onMounted(load)
 .rc-ph { display: flex; align-items: center; justify-content: center; font-size: 28px; background: var(--el-color-primary-light-9); color: var(--el-text-color-secondary); }
 .rc-title { padding: 6px 8px 2px; font-size: 13px; font-weight: 600; color: var(--el-text-color-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rc-meta { padding: 0 8px 8px; font-size: 11px; color: var(--el-text-color-secondary); }
+/* 移动端 H5 响应式 */
+@media (max-width: 768px) {
+  .hero { min-height: 240px; }
+  .hero h1 { font-size: 22px; }
+  .container { padding: 14px 12px; }
+  .block { padding: 14px; }
+  .w-forecast, .benefits, .gallery, .related-grid { grid-template-columns: repeat(2, 1fr); }
+  .cta-bar { padding: 8px 12px; gap: 8px; }
+  .cta-bar .cta-type { font-size: 13px; }
+  .itinerary { flex-direction: column; gap: 8px; }
+  .day-badge { width: 40px; height: 40px; font-size: 11px; }
+}
 </style>
