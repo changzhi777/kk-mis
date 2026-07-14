@@ -32,6 +32,13 @@ const router = createRouter({
       component: () => import('@/views/asset/Verify.vue'),
       meta: { public: true, title: '防伪核验' },
     },
+    // A1 推广码公开页（2026-07-15）
+    {
+      path: '/promo/:code',
+      name: 'agent-promo',
+      component: () => import('@/views/PromoPage.vue'),
+      meta: { public: true, title: '专属代理' },
+    },
     // 旅游产品公开介绍页（CMS，2026-07-14）
     {
       path: '/product/:slug',
