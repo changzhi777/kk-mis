@@ -116,9 +116,30 @@
 
       <!-- CTA 浮动栏 -->
       <div class="cta-bar">
-        <span class="cta-type">{{ p.type === 'custom' ? '高端订制游' : '旅游权益卡' }}</span>
+        <div class="cta-left">
+          <span class="cta-type">{{ p.type === 'custom' ? '高端订制游' : '旅游权益卡' }}</span>
+          <el-button v-if="!endUser.isLogin" link @click="authDialog = true">登录</el-button>
+          <span v-else class="end-user">
+            👤 {{ endUser.displayName }}
+            <el-button link size="small" @click="endUser.logout()">退出</el-button>
+          </span>
+        </div>
         <el-button type="primary" size="large" @click="consult">{{ p.type === 'custom' ? '咨询定制' : '立即购买' }}</el-button>
       </div>
+
+      <!-- C 端登录/注册弹窗 -->
+      <el-dialog v-model="authDialog" :title="authMode === 'login' ? '登录' : '注册'" width="400">
+        <el-form :model="authForm" label-width="70px">
+          <el-form-item label="手机号"><el-input v-model="authForm.phone" /></el-form-item>
+          <el-form-item label="密码"><el-input v-model="authForm.password" type="password" show-password /></el-form-item>
+          <el-form-item v-if="authMode === 'register'" label="昵称"><el-input v-model="authForm.nickname" placeholder="选填" /></el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button link @click="toggleAuthMode">{{ authMode === 'login' ? '没账号？去注册' : '有账号？去登录' }}</el-button>
+          <el-button @click="authDialog = false">取消</el-button>
+          <el-button type="primary" :loading="authing" @click="doAuth">{{ authMode === 'login' ? '登录' : '注册' }}</el-button>
+        </template>
+      </el-dialog>
 
       <!-- 订制游询价表单 -->
       <el-dialog v-model="leadDialog" title="咨询定制" width="500">
@@ -186,10 +207,12 @@ import { ElMessage } from 'element-plus'
 import DOMPurify from 'dompurify'
 import cmsApi from '@/api/cms'
 import { getApiError } from '@/api/admin'
+import { useEndUserStore } from '@/stores/endUser'
 import type { InquiryLead, ProductOrder, TourProduct } from '@/api/cms'
 
 const route = useRoute()
 const router = useRouter()
+const endUser = useEndUserStore()
 const p = ref<TourProduct | null>(null)
 const related = ref<TourProduct[]>([])
 const loading = ref(false)
@@ -246,14 +269,56 @@ function goRelated(slug: string) {
 }
 
 function consult() {
+  const phone = endUser.isLogin && endUser.user ? endUser.user.phone : ''
+  const name = endUser.isLogin && endUser.user ? endUser.user.nickname || endUser.user.phone : ''
   if (p.value?.type === 'custom') {
+    // 询价预填（登录态）
+    if (name) lead.name = name
+    if (phone) lead.phone = phone
     leadDialog.value = true
   } else {
-    // 权益卡：打开购买弹窗
-    Object.assign(buyForm, { quantity: 1, coupon_code: '', buyer_name: '', buyer_phone: '' })
+    // 权益卡购买预填
+    Object.assign(buyForm, { quantity: 1, coupon_code: '', buyer_name: name, buyer_phone: phone })
     createdOrder.value = null
     discountVal.value = 0
     buyDialog.value = true
+  }
+}
+
+// C 端登录/注册
+const authDialog = ref(false)
+const authMode = ref<'login' | 'register'>('login')
+const authing = ref(false)
+const authForm = reactive({ phone: '', password: '', nickname: '' })
+
+function toggleAuthMode() {
+  authMode.value = authMode.value === 'login' ? 'register' : 'login'
+}
+
+async function doAuth() {
+  if (!authForm.phone || !authForm.password) {
+    ElMessage.warning('请填写手机号和密码')
+    return
+  }
+  authing.value = true
+  try {
+    const res =
+      authMode.value === 'login'
+        ? await cmsApi.loginEndUser({ phone: authForm.phone, password: authForm.password })
+        : await cmsApi.registerEndUser({
+            phone: authForm.phone,
+            password: authForm.password,
+            nickname: authForm.nickname || undefined,
+          })
+    endUser.setAuth(res.token, res.user)
+    ElMessage.success(authMode.value === 'login' ? '登录成功' : '注册成功')
+    authDialog.value = false
+    // 预填评论昵称
+    reviewForm.author_name = res.user.nickname || res.user.phone
+  } catch (e: unknown) {
+    ElMessage.error(getApiError(e, '操作失败'))
+  } finally {
+    authing.value = false
   }
 }
 
@@ -396,7 +461,9 @@ onMounted(load)
 .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
 .gallery-img { width: 100%; height: 160px; object-fit: cover; border-radius: 8px; }
 .cta-bar { position: fixed; bottom: 0; left: 0; right: 0; background: var(--el-bg-color); border-top: 1px solid var(--el-border-color); padding: 10px 16px; display: flex; justify-content: center; align-items: center; gap: 16px; box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08); z-index: 10; }
+.cta-bar .cta-left { display: flex; align-items: center; gap: 12px; }
 .cta-bar .cta-type { font-weight: 600; color: var(--el-text-color-primary); }
+.end-user { font-size: 13px; color: var(--el-text-color-regular); display: inline-flex; align-items: center; gap: 4px; }
 .row-line { display: flex; gap: 6px; align-items: center; }
 .disc { color: var(--el-color-danger); font-size: 13px; }
 .paid { font-weight: 600; color: var(--el-color-primary); }

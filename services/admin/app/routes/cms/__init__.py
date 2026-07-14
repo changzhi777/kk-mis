@@ -3,12 +3,14 @@ from .leads import router as leads_router
 from .media import router as media_router
 from .merchants import router as merchants_router
 from .orders import router as orders_router
+from .auth import router as auth_router
 from .payments import router as payments_router
 from .products import router as products_router
 from .reviews import router as reviews_router
 from .stats import router as stats_router
 
 cms_routers = [
+    auth_router,
     products_router,
     media_router,
     merchants_router,

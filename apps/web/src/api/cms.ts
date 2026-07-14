@@ -181,6 +181,19 @@ export interface DashboardStats {
   revenue: number | string
 }
 
+export interface EndUser {
+  id: number
+  phone: string
+  nickname?: string
+  created_at?: string
+}
+
+/** C 端 token header（与 admin token 分离，公开页 admin 未登录时手动注入） */
+export function endHeaders(): Record<string, string> {
+  const t = localStorage.getItem('kk-cms-end-user-token')
+  return t ? { Authorization: `Bearer ${t}` } : {}
+}
+
 // ===== API =====
 export const cmsApi = {
   // 产品
@@ -316,6 +329,23 @@ export const cmsApi = {
     return http
       .get(`/api/v1/cms/products/related/${encodeURIComponent(slug)}`)
       .then((r) => r.data.items as TourProduct[])
+  },
+
+  // C 端终端用户
+  registerEndUser(data: { phone: string; password: string; nickname?: string }) {
+    return http
+      .post('/api/v1/cms/auth/register', data)
+      .then((r) => r.data as { token: string; user: EndUser })
+  },
+  loginEndUser(data: { phone: string; password: string }) {
+    return http
+      .post('/api/v1/cms/auth/login', data)
+      .then((r) => r.data as { token: string; user: EndUser })
+  },
+  getEndUserMe() {
+    return http
+      .get('/api/v1/cms/auth/me', { headers: endHeaders() })
+      .then((r) => r.data as EndUser)
   },
 }
 

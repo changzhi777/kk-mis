@@ -205,3 +205,19 @@ class Review(Base):
     content = Column(Text, nullable=False)
     status = Column(String(20), default="pending", nullable=False, index=True)  # pending|approved|rejected
     created_at = Column(DateTime, default=utcnow)
+
+
+class EndUser(Base):
+    """C 端终端用户（公开页注册/登录，独立于 admin RBAC）
+
+    与 admin User 区分：admin 是后台管理用户（RBAC），EndUser 是 C 端消费者。
+    JWT 用 type=end_user 区分。
+    """
+
+    __tablename__ = "cms_end_user"
+
+    id = pk()
+    phone = Column(String(30), unique=True, nullable=False, index=True)
+    password_hash = Column(String(255), nullable=False)
+    nickname = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=utcnow)

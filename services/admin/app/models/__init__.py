@@ -11,6 +11,7 @@ from .asset import AssetCard, AssetCardBatch, AssetCardType, AssetRedemption, Ca
 from .audit import AuditLog
 from .cms import (
     Coupon,
+    EndUser,
     InquiryLead,
     MediaAsset,
     Merchant,
@@ -86,4 +87,5 @@ __all__ = [
     "ProductOrder",
     "Coupon",
     "Review",
+    "EndUser",
 ]

@@ -404,3 +404,61 @@ def test_order_pay_issues_card(client, auth_header):
     assert r["issued_card_no"]  # 发了卡
     assert r["issued_card_password"]
     assert len(r["issued_card_no"]) == 16
+
+
+# ===== C 端终端用户账号 =====
+def test_end_user_register(client):
+    r = client.post(
+        "/admin/api/v1/cms/auth/register",
+        json={"phone": "13900000001", "password": "pass123", "nickname": "用户A"},
+    )
+    assert r.status_code == 200
+    assert r.json()["token"]
+    assert r.json()["user"]["phone"] == "13900000001"
+
+
+def test_end_user_login(client):
+    client.post(
+        "/admin/api/v1/cms/auth/register",
+        json={"phone": "13900000002", "password": "pass123"},
+    )
+    r = client.post(
+        "/admin/api/v1/cms/auth/login", json={"phone": "13900000002", "password": "pass123"}
+    )
+    assert r.status_code == 200
+    assert r.json()["token"]
+
+
+def test_end_user_login_wrong(client):
+    client.post(
+        "/admin/api/v1/cms/auth/register",
+        json={"phone": "13900000003", "password": "pass123"},
+    )
+    r = client.post(
+        "/admin/api/v1/cms/auth/login", json={"phone": "13900000003", "password": "wrong"}
+    )
+    assert r.status_code == 401
+
+
+def test_end_user_duplicate(client):
+    client.post(
+        "/admin/api/v1/cms/auth/register",
+        json={"phone": "13900000004", "password": "pass123"},
+    )
+    r = client.post(
+        "/admin/api/v1/cms/auth/register",
+        json={"phone": "13900000004", "password": "pass123"},
+    )
+    assert r.status_code == 400
+
+
+def test_end_user_me(client):
+    tok = client.post(
+        "/admin/api/v1/cms/auth/register",
+        json={"phone": "13900000005", "password": "pass123"},
+    ).json()["token"]
+    r = client.get("/admin/api/v1/cms/auth/me", headers={"Authorization": f"Bearer {tok}"})
+    assert r.status_code == 200
+    assert r.json()["phone"] == "13900000005"
+    # 无 token → 401
+    assert client.get("/admin/api/v1/cms/auth/me").status_code == 401

@@ -310,3 +310,24 @@ class DashboardStats(BaseModel):
     orders_total: int
     orders_paid: int
     revenue: Decimal
+
+
+# ===== C 端终端用户 =====
+class EndUserRegister(BaseModel):
+    phone: str = Field(..., max_length=30)
+    password: str = Field(..., min_length=6, max_length=64)
+    nickname: Optional[str] = Field(None, max_length=50)
+
+
+class EndUserLogin(BaseModel):
+    phone: str
+    password: str
+
+
+class EndUserOut(BaseModel):
+    id: int
+    phone: str
+    nickname: Optional[str] = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
