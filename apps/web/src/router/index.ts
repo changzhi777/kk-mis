@@ -32,6 +32,13 @@ const router = createRouter({
       component: () => import('@/views/asset/Verify.vue'),
       meta: { public: true, title: '防伪核验' },
     },
+    // 旅游产品公开介绍页（CMS，2026-07-14）
+    {
+      path: '/product/:slug',
+      name: 'cms-product-view',
+      component: () => import('@/views/cms/ProductView.vue'),
+      meta: { public: true, title: '产品详情' },
+    },
     {
       path: '/',
       name: 'home',
@@ -205,11 +212,36 @@ const router = createRouter({
       component: () => import('@/views/agent/Commission.vue'),
       meta: { title: '分润报表', group: 'agent', permission: 'agent:commission:view' },
     },
+    // 内容管理（CMS，2026-07-14：VIP 卡旅游产品介绍）
+    {
+      path: '/cms/product',
+      name: 'cms-product',
+      component: () => import('@/views/cms/ProductList.vue'),
+      meta: { title: '旅游产品', group: 'cms', permission: 'cms:product:list' },
+    },
+    {
+      path: '/cms/product/:id',
+      name: 'cms-product-edit',
+      component: () => import('@/views/cms/ProductEdit.vue'),
+      meta: { title: '编辑产品', group: 'cms', permission: 'cms:product:save' },
+    },
+    {
+      path: '/cms/media',
+      name: 'cms-media',
+      component: () => import('@/views/cms/MediaLibrary.vue'),
+      meta: { title: '素材库', group: 'cms', permission: 'cms:media:list' },
+    },
+    {
+      path: '/cms/merchant',
+      name: 'cms-merchant',
+      component: () => import('@/views/cms/MerchantList.vue'),
+      meta: { title: '合作商户', group: 'cms', permission: 'cms:merchant:list' },
+    },
   ],
 })
 
 router.beforeEach((to, _from, next) => {
-  document.title = (to.meta.title as string) || 'kk-mis'
+  document.title = (to.meta.title as string) || 'kk-cms'
   const userStore = useUserStore()
 
   // 公开页面（登录页）直接放行

@@ -1,5 +1,6 @@
 from .agent import agent_routers
 from .asset import asset_routers
+from .cms import cms_routers
 from .audit import router as audit_router
 from .auth import router as auth_router
 from .auth_oauth import router as auth_oauth_router
@@ -26,6 +27,7 @@ all_routers = [
     *finance_routers,
     *asset_routers,
     *agent_routers,
+    *cms_routers,
     *oa_routers,
     member_router,
     oa_agent_bridge_router,

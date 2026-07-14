@@ -1,0 +1,169 @@
+<template>
+  <div class="product-view" v-loading="loading">
+    <div v-if="notFound" class="not-found"><el-empty description="产品不存在或未发布" /></div>
+    <template v-else-if="p">
+      <!-- Hero -->
+      <div class="hero" :style="p.cover_image ? { backgroundImage: `url(${p.cover_image})` } : {}">
+        <div class="hero-mask">
+          <h1>{{ p.title }}</h1>
+          <div class="meta">
+            <el-tag v-if="p.destination" size="large" effect="dark">📍 {{ p.destination }}</el-tag>
+            <el-tag v-if="p.theme" size="large" type="warning" effect="dark">{{ p.theme }}</el-tag>
+            <el-tag size="large" :type="p.type === 'custom' ? 'warning' : 'success'" effect="dark">
+              {{ p.type === 'custom' ? '高端订制游' : '旅游权益卡' }}
+            </el-tag>
+          </div>
+          <p v-if="p.summary" class="summary">{{ p.summary }}</p>
+        </div>
+      </div>
+
+      <div class="container">
+        <!-- 亮点 -->
+        <section v-if="p.highlights?.length" class="block">
+          <h2>产品亮点</h2>
+          <ul class="highlights">
+            <li v-for="(h, i) in p.highlights" :key="i">{{ h }}</li>
+          </ul>
+        </section>
+
+        <!-- 富文本介绍（DOMPurify 净化防 XSS） -->
+        <section v-if="p.content" class="block">
+          <h2>产品介绍</h2>
+          <div class="rich-content" v-html="sanitizedContent"></div>
+        </section>
+
+        <!-- A 订制游：行程时间线 -->
+        <section v-if="p.type === 'custom' && p.custom?.itinerary?.length" class="block">
+          <h2>行程安排</h2>
+          <div v-for="it in p.custom.itinerary" :key="it.day" class="itinerary">
+            <div class="day-badge">Day {{ it.day }}</div>
+            <div class="day-body">
+              <h3>{{ it.title }}</h3>
+              <div class="day-meta">
+                <span v-if="it.transport">🚗 {{ it.transport }}</span>
+                <span v-if="it.hotel">🏨 {{ it.hotel }}</span>
+                <span v-if="it.meals">🍽️ {{ it.meals }}</span>
+              </div>
+              <div v-if="it.spots?.length" class="spots">
+                <el-tag v-for="(s, si) in it.spots" :key="si" size="small" effect="plain">{{ s }}</el-tag>
+              </div>
+              <p v-if="it.description" class="desc">{{ it.description }}</p>
+            </div>
+          </div>
+          <div v-if="p.custom.price_mode === 'inquiry'" class="price-note">💎 一单一议，按需定制报价</div>
+        </section>
+
+        <!-- C 权益卡：权益清单 -->
+        <section v-if="p.type === 'pass' && p.pass_config" class="block">
+          <h2>权益清单</h2>
+          <div class="pass-price">
+            <div class="price-item"><span>卡面值</span><strong>¥{{ Number(p.pass_config.face_value).toFixed(2) }}</strong></div>
+            <div class="price-item worth"><span>权益总价</span><strong>¥{{ Number(p.pass_config.total_worth).toFixed(2) }}</strong></div>
+            <div v-if="p.pass_config.valid_period" class="price-item"><span>有效期</span><strong>{{ p.pass_config.valid_period }}</strong></div>
+          </div>
+          <div v-if="p.pass_config.benefits?.length" class="benefits">
+            <div v-for="(b, i) in p.pass_config.benefits" :key="i" class="benefit">
+              <div class="b-name">{{ b.name }}</div>
+              <div class="b-val">¥{{ b.value }} × {{ b.quantity }}</div>
+            </div>
+          </div>
+          <div v-if="p.pass_config.usage_rules" class="usage">
+            <h3>使用规则</h3>
+            <p>{{ p.pass_config.usage_rules }}</p>
+          </div>
+        </section>
+
+        <!-- 图集 -->
+        <section v-if="p.gallery?.length" class="block">
+          <h2>图集</h2>
+          <div class="gallery">
+            <img v-for="(g, i) in p.gallery" :key="i" :src="g" loading="lazy" class="gallery-img" />
+          </div>
+        </section>
+      </div>
+
+      <!-- CTA 浮动栏 -->
+      <div class="cta-bar">
+        <span class="cta-type">{{ p.type === 'custom' ? '高端订制游' : '旅游权益卡' }}</span>
+        <el-button type="primary" size="large" @click="consult">{{ p.type === 'custom' ? '咨询定制' : '立即购买' }}</el-button>
+      </div>
+    </template>
+  </div>
+</template>
+<script setup lang="ts">
+import { computed, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import DOMPurify from 'dompurify'
+import cmsApi from '@/api/cms'
+import type { TourProduct } from '@/api/cms'
+
+const route = useRoute()
+const p = ref<TourProduct | null>(null)
+const loading = ref(false)
+const notFound = ref(false)
+
+// 富文本经 DOMPurify 净化（复用项目 XSS 防护，content 来自后台编辑需防注入）
+const sanitizedContent = computed(() => (p.value?.content ? DOMPurify.sanitize(p.value.content) : ''))
+
+async function load() {
+  loading.value = true
+  try {
+    p.value = await cmsApi.getPublicProduct(route.params.slug as string)
+  } catch {
+    notFound.value = true
+  } finally {
+    loading.value = false
+  }
+}
+
+function consult() {
+  // 演示占位：实际接客服微信/下单流程
+  ElMessage.info('请通过客服微信联系')
+}
+
+onMounted(load)
+</script>
+<style scoped>
+.product-view { min-height: 100vh; background: var(--el-bg-color-page); padding-bottom: 70px; }
+.not-found { display: flex; justify-content: center; padding: 80px 0; }
+.hero { min-height: 360px; background-size: cover; background-position: center; background-color: var(--el-color-primary-light-9); display: flex; align-items: flex-end; }
+.hero-mask { background: linear-gradient(transparent, rgba(0, 0, 0, 0.7)); padding: 50px 0 28px; width: 100%; }
+.container { max-width: 900px; margin: 0 auto; padding: 20px 16px; }
+.hero h1 { color: #fff; font-size: 30px; margin: 0 16px 12px; text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5); }
+.hero .meta { display: flex; gap: 8px; margin: 0 16px 10px; flex-wrap: wrap; }
+.hero .summary { margin: 0 16px; color: rgba(255, 255, 255, 0.92); font-size: 15px; line-height: 1.6; }
+.block { background: var(--el-bg-color); border-radius: 10px; padding: 20px; margin-bottom: 14px; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04); }
+.block h2 { font-size: 19px; margin: 0 0 16px; color: var(--el-text-color-primary); border-left: 4px solid var(--el-color-primary); padding-left: 10px; }
+.highlights { list-style: none; padding: 0; margin: 0; }
+.highlights li { padding: 9px 0; border-bottom: 1px dashed var(--el-border-color-lighter); color: var(--el-text-color-regular); }
+.highlights li:before { content: '✓ '; color: var(--el-color-primary); font-weight: bold; }
+.rich-content { line-height: 1.8; color: var(--el-text-color-regular); }
+.rich-content :deep(h2), .rich-content :deep(h3) { color: var(--el-text-color-primary); margin: 0.8em 0 0.4em; }
+.rich-content :deep(ul), .rich-content :deep(ol) { padding-left: 1.6em; }
+.rich-content :deep(img) { max-width: 100%; border-radius: 6px; }
+.itinerary { display: flex; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--el-border-color-lighter); }
+.day-badge { background: var(--el-color-primary); color: #fff; border-radius: 50%; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink: 0; font-size: 13px; }
+.day-body { flex: 1; }
+.day-body h3 { margin: 0 0 6px; font-size: 16px; }
+.day-meta { display: flex; gap: 12px; color: var(--el-text-color-secondary); font-size: 13px; margin-bottom: 6px; flex-wrap: wrap; }
+.spots { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
+.desc { color: var(--el-text-color-regular); font-size: 14px; margin: 6px 0 0; line-height: 1.6; }
+.price-note { text-align: center; color: var(--el-color-primary); font-weight: 600; margin-top: 16px; }
+.pass-price { display: flex; gap: 14px; margin-bottom: 16px; flex-wrap: wrap; }
+.price-item { flex: 1; min-width: 120px; background: var(--el-fill-color-light); border-radius: 8px; padding: 14px; text-align: center; }
+.price-item span { display: block; font-size: 13px; color: var(--el-text-color-secondary); margin-bottom: 6px; }
+.price-item strong { font-size: 22px; color: var(--el-color-primary); }
+.price-item.worth strong { color: var(--el-color-danger); text-decoration: line-through; font-size: 18px; }
+.benefits { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+.benefit { border: 1px solid var(--el-border-color-lighter); border-radius: 8px; padding: 12px; }
+.b-name { font-weight: 600; margin-bottom: 4px; color: var(--el-text-color-primary); }
+.b-val { color: var(--el-text-color-secondary); font-size: 13px; }
+.usage { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--el-border-color-lighter); }
+.usage h3 { font-size: 15px; margin: 0 0 8px; }
+.usage p { color: var(--el-text-color-regular); font-size: 14px; line-height: 1.7; white-space: pre-line; }
+.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+.gallery-img { width: 100%; height: 160px; object-fit: cover; border-radius: 8px; }
+.cta-bar { position: fixed; bottom: 0; left: 0; right: 0; background: var(--el-bg-color); border-top: 1px solid var(--el-border-color); padding: 10px 16px; display: flex; justify-content: center; align-items: center; gap: 16px; box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08); z-index: 10; }
+.cta-bar .cta-type { font-weight: 600; color: var(--el-text-color-primary); }
+</style>

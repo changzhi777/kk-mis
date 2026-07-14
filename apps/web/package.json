@@ -1,5 +1,5 @@
 {
-  "name": "kk-mis-web",
+  "name": "kk-cms-web",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -12,6 +12,8 @@
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.0",
+    "@tiptap/starter-kit": "^3.27.4",
+    "@tiptap/vue-3": "^3.27.4",
     "@types/dompurify": "^3.2.0",
     "axios": "^1.7.0",
     "dompurify": "^3.4.12",

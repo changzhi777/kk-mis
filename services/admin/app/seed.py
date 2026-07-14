@@ -86,6 +86,17 @@ _DEFAULT_MENUS = [
     ("oa:attendance", "考勤打卡", "menu", "/attendance", "Clock", "oa", 35),
     # 审计 api
     ("system:audit:view", "审计查看", "api", "/api/v1/audit", None, "system:audit", 1),
+    # 内容管理（CMS，2026-07-14 新增：VIP 卡旅游产品介绍页）
+    ("cms", "内容管理", "menu", "/cms", "Picture", None, 35),
+    ("cms:product", "旅游产品", "menu", "/cms/product", "Tickets", "cms", 10),
+    ("cms:media", "素材库", "menu", "/cms/media", "FolderOpened", "cms", 20),
+    ("cms:merchant", "合作商户", "menu", "/cms/merchant", "Shop", "cms", 30),
+    ("cms:product:list", "产品查询", "api", "/api/v1/cms/products", None, "cms:product", 1),
+    ("cms:product:save", "产品保存", "api", "/api/v1/cms/products", None, "cms:product", 2),
+    ("cms:media:list", "素材查询", "api", "/api/v1/cms/media", None, "cms:media", 1),
+    ("cms:media:upload", "素材上传", "api", "/api/v1/cms/media", None, "cms:media", 2),
+    ("cms:merchant:list", "商户查询", "api", "/api/v1/cms/merchants", None, "cms:merchant", 1),
+    ("cms:merchant:save", "商户保存", "api", "/api/v1/cms/merchants", None, "cms:merchant", 2),
 ]
 
 _DEFAULT_CATEGORIES = [

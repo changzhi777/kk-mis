@@ -9,6 +9,7 @@ from .agent import (
 )
 from .asset import AssetCard, AssetCardBatch, AssetCardType, AssetRedemption, CardTransfer
 from .audit import AuditLog
+from .cms import MediaAsset, Merchant, TourCustom, TourPass, TourProduct
 from .member import MemberLevel, MemberStat, PointsLog
 from .oa import (
     Announcement,
@@ -66,4 +67,9 @@ __all__ = [
     "WorkReport",
     "Attendance",
     "SocialAccount",
+    "MediaAsset",
+    "Merchant",
+    "TourProduct",
+    "TourCustom",
+    "TourPass",
 ]
