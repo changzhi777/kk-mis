@@ -3,9 +3,12 @@
     <template #header>
       <div class="hr">
         <span class="ct">询价线索</span>
-        <el-select v-model="statusFilter" clearable placeholder="状态" @change="load" style="width: 130px">
-          <el-option v-for="[v, l] in statusOpts" :key="v" :label="l" :value="v" />
-        </el-select>
+        <div class="ops">
+          <el-select v-model="statusFilter" clearable placeholder="状态" @change="load" style="width: 130px">
+            <el-option v-for="[v, l] in statusOpts" :key="v" :label="l" :value="v" />
+          </el-select>
+          <el-button :icon="Download" @click="exportCsv">导出</el-button>
+        </div>
       </div>
     </template>
     <el-table :data="items" v-loading="loading" stripe>
@@ -36,8 +39,10 @@
 </template>
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { Download } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import cmsApi from '@/api/cms'
+import adminApi from '@/api/admin'
 import { getApiError } from '@/api/admin'
 import type { InquiryLead, InquiryLeadStatus } from '@/api/cms'
 
@@ -78,6 +83,10 @@ async function remove(id: number) {
   await cmsApi.deleteLead(id)
   ElMessage.success('已删除')
   load()
+}
+
+function exportCsv() {
+  adminApi.downloadCsv('/api/v1/cms/leads/export', statusFilter.value ? { status: statusFilter.value } : undefined)
 }
 
 onMounted(load)

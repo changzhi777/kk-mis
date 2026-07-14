@@ -3,6 +3,7 @@
 - 下单时锁定单价（product.pass_config.face_value）+ 优惠券算价
 - 支付 mock（pending→paid，核销券 used_count）；不发真实 asset 卡（运营后续发卡）
 """
+import io
 import os
 import secrets
 import string
@@ -10,6 +11,7 @@ import uuid
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,7 +20,8 @@ from ...deps import require_permission
 from ...models import AssetCard, AssetCardBatch, AssetCardType, Coupon, ProductOrder, TourPass, TourProduct
 from ...schemas.cms import ProductOrderCreate, ProductOrderOut
 from ...security import hash_password
-from ...utils import utcnow
+from ...services.notifier import notify
+from ...utils import to_csv, utcnow
 
 router = APIRouter(prefix="/api/v1/cms/orders", tags=["cms-order"])
 
@@ -144,7 +147,41 @@ async def pay_order(order_id: int, session: AsyncSession = Depends(get_session))
             o.issued_card_no, o.issued_card_password = issued
     await session.commit()
     await session.refresh(o)
+    # webhook 通知新订单（旁路，失败静默）
+    await notify("新订单", {"id": o.id, "buyer": o.buyer_name, "phone": o.buyer_phone, "total": str(o.total)})
     return ProductOrderOut.model_validate(o).model_dump()
+
+
+@router.get("/export")
+async def export_orders(
+    pay_status: str | None = None,
+    session: AsyncSession = Depends(get_session),
+    _=Depends(require_permission("cms:order:list")),
+):
+    """导出订单 CSV"""
+    q = select(ProductOrder).order_by(ProductOrder.id.desc())
+    if pay_status:
+        q = q.where(ProductOrder.pay_status == pay_status)
+    items = (await session.execute(q)).scalars().all()
+    rows = [
+        [
+            o.id, o.buyer_name, o.buyer_phone, o.quantity,
+            str(o.unit_price), str(o.original_total), str(o.discount), str(o.total),
+            o.coupon_code or "", o.pay_status, o.issued_card_no or "",
+            o.created_at.isoformat() if o.created_at else "",
+        ]
+        for o in items
+    ]
+    cols = [
+        ("id", "订单ID"), ("buyer_name", "买家"), ("buyer_phone", "电话"), ("quantity", "数量"),
+        ("unit_price", "单价"), ("original_total", "原价"), ("discount", "优惠"), ("total", "实付"),
+        ("coupon_code", "券码"), ("pay_status", "状态"), ("issued_card_no", "发出的卡号"), ("created_at", "时间"),
+    ]
+    return StreamingResponse(
+        io.BytesIO(to_csv(rows, cols)),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="cms_orders.csv"'},
+    )
 
 
 @router.get("")
