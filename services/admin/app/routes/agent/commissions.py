@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...db import get_session
 from ...deps import get_user_scope, require_permission
-from ...models import CommissionRecord, CommissionRule
+from ...models import AgentOrder, CommissionRecord, CommissionRule
 from ...schemas.agent import CommissionRecordOut, CommissionRuleCreate, CommissionRuleOut
 
 router = APIRouter(prefix="/api/v1/agent/commissions", tags=["agent-commission"])
@@ -100,6 +100,52 @@ async def summary(
         await session.execute(stmt.group_by(CommissionRecord.status))
     ).all()
     return {"items": [{"status": r[0], "amount": float(r[1] or 0)} for r in rows]}
+
+
+@router.get("/dashboard")
+async def dashboard(
+    session: AsyncSession = Depends(get_session),
+    user=Depends(require_permission("agent:commission:view")),
+):
+    """A4 代理看板：订单统计 + 返佣统计 + 区域排名（data_scope=self 仅自己）"""
+    scope, my_agent_ids = await get_user_scope(user, session)
+    if scope == "self" and not my_agent_ids:
+        return {"orders": [], "commissions": [], "regions": []}
+
+    def _self_filter(stmt, col):
+        return stmt.where(col.in_(my_agent_ids)) if scope == "self" else stmt
+
+    # 订单统计（按 status 聚合 count + total）
+    order_stmt = _self_filter(
+        select(AgentOrder.status, func.count(), func.sum(AgentOrder.total)),
+        AgentOrder.agent_id,
+    )
+    order_rows = (await session.execute(order_stmt.group_by(AgentOrder.status))).all()
+    orders = [{"status": r[0], "count": r[1], "total": float(r[2] or 0)} for r in order_rows]
+
+    # 返佣统计（按 status 聚合 amount）
+    comm_stmt = _self_filter(
+        select(CommissionRecord.status, func.sum(CommissionRecord.amount)),
+        CommissionRecord.agent_id,
+    )
+    comm_rows = (await session.execute(comm_stmt.group_by(CommissionRecord.status))).all()
+    commissions = [{"status": r[0], "amount": float(r[1] or 0)} for r in comm_rows]
+
+    # 区域排名（按 region_code 聚合订单总额，top 10）
+    region_stmt = _self_filter(
+        select(AgentOrder.region_code, func.sum(AgentOrder.total)).where(AgentOrder.region_code.isnot(None)),
+        AgentOrder.agent_id,
+    )
+    region_rows = (
+        await session.execute(
+            region_stmt.group_by(AgentOrder.region_code)
+            .order_by(func.sum(AgentOrder.total).desc())
+            .limit(10)
+        )
+    ).all()
+    regions = [{"region": r[0], "total": float(r[1] or 0)} for r in region_rows]
+
+    return {"orders": orders, "commissions": commissions, "regions": regions}
 
 
 @router.post("/settle")
