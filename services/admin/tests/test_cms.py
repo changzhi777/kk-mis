@@ -146,3 +146,146 @@ def test_media_path_traversal_blocked(client, auth_header):
     """文件服务防路径遍历"""
     # /file/../../etc/passwd → basename 后非法或 404
     assert client.get("/admin/api/v1/cms/media/file/..%2F..%2Fetc%2Fpasswd").status_code in (400, 404)
+
+
+# ===== 分类/标签 =====
+def test_product_category_tags(client, auth_header):
+    """产品含 category/tags + list 按 category 过滤"""
+    p = _create_product(client, auth_header, slug="cat-1")
+    client.put(
+        f"/admin/api/v1/cms/products/{p['id']}",
+        json={"category": "海外", "tags": ["海岛", "蜜月"]},
+        headers=auth_header,
+    )
+    r = client.get("/admin/api/v1/cms/products", params={"category": "海外"}, headers=auth_header)
+    slugs = [i["slug"] for i in r.json()["items"]]
+    assert "cat-1" in slugs
+    # 反向：国内分类不含 cat-1
+    r2 = client.get("/admin/api/v1/cms/products", params={"category": "国内"}, headers=auth_header)
+    assert "cat-1" not in [i["slug"] for i in r2.json()["items"]]
+
+
+# ===== 询价线索 =====
+def test_lead_submit_public(client):
+    """公开提交询价线索（无需登录）"""
+    r = client.post(
+        "/admin/api/v1/cms/leads",
+        json={"name": "张三", "phone": "13800138000", "destination": "三亚", "people": 4},
+    )
+    assert r.status_code == 200
+    assert r.json()["status"] == "new"
+    assert r.json()["id"]
+
+
+def test_lead_list_requires_auth(client):
+    """admin 线索列表无 token → 401"""
+    assert client.get("/admin/api/v1/cms/leads").status_code == 401
+
+
+def test_lead_status_update(client, auth_header):
+    """线索状态流转 new→contacted"""
+    lead = client.post(
+        "/admin/api/v1/cms/leads", json={"name": "李四", "phone": "13900139000"}, headers=auth_header
+    ).json()
+    r = client.put(
+        f"/admin/api/v1/cms/leads/{lead['id']}/status", json={"status": "contacted"}, headers=auth_header
+    )
+    assert r.status_code == 200
+    assert r.json()["status"] == "contacted"
+
+
+def test_lead_list_filter(client, auth_header):
+    """线索列表按 status 过滤"""
+    client.post("/admin/api/v1/cms/leads", json={"name": "王五", "phone": "13700137000"})
+    r = client.get("/admin/api/v1/cms/leads", params={"status": "new"}, headers=auth_header)
+    assert r.status_code == 200
+    assert all(i["status"] == "new" for i in r.json()["items"])
+
+
+# ===== 订单 + 优惠券 =====
+def _create_coupon(client, h, code="TEST10", dtype="percent", value=10):
+    return client.post(
+        "/admin/api/v1/cms/coupons",
+        json={"code": code, "name": "测试券", "discount_type": dtype, "discount_value": value},
+        headers=h,
+    ).json()
+
+
+def test_order_create(client, auth_header):
+    """权益卡下单（算价：face_value 1888 × quantity）"""
+    p = _create_product(client, auth_header, slug="order-1", ptype="pass", status="published")
+    r = client.post(
+        "/admin/api/v1/cms/orders",
+        json={"product_id": p["id"], "quantity": 2, "buyer_name": "买家", "buyer_phone": "13800000000"},
+    )
+    assert r.status_code == 200
+    o = r.json()
+    assert o["pay_status"] == "pending"
+    assert float(o["original_total"]) == 1888 * 2
+    assert float(o["total"]) == float(o["original_total"])  # 无券
+
+
+def test_order_only_pass(client, auth_header):
+    """订制游（custom）不能下单"""
+    p = _create_product(client, auth_header, slug="order-custom", ptype="custom")
+    r = client.post(
+        "/admin/api/v1/cms/orders",
+        json={"product_id": p["id"], "quantity": 1, "buyer_name": "x", "buyer_phone": "1"},
+    )
+    assert r.status_code == 400
+
+
+def test_order_with_coupon(client, auth_header):
+    """下单用优惠券（10% off）"""
+    _create_coupon(client, auth_header, code="OFF10", dtype="percent", value=10)
+    p = _create_product(client, auth_header, slug="order-coupon", ptype="pass", status="published")
+    r = client.post(
+        "/admin/api/v1/cms/orders",
+        json={"product_id": p["id"], "quantity": 1, "coupon_code": "OFF10", "buyer_name": "x", "buyer_phone": "1"},
+    )
+    assert r.status_code == 200
+    o = r.json()
+    assert float(o["discount"]) > 0
+    assert float(o["total"]) < float(o["original_total"])
+
+
+def test_order_pay(client, auth_header):
+    """mock 支付 pending→paid + 券 used_count +1"""
+    _create_coupon(client, auth_header, code="PAY100", dtype="fixed", value=100)
+    p = _create_product(client, auth_header, slug="order-pay", ptype="pass", status="published")
+    o = client.post(
+        "/admin/api/v1/cms/orders",
+        json={"product_id": p["id"], "quantity": 1, "coupon_code": "PAY100", "buyer_name": "x", "buyer_phone": "1"},
+    ).json()
+    r = client.post(f"/admin/api/v1/cms/orders/{o['id']}/pay")
+    assert r.status_code == 200
+    assert r.json()["pay_status"] == "paid"
+    coupons = client.get("/admin/api/v1/cms/coupons", headers=auth_header).json()["items"]
+    assert any(c["code"] == "PAY100" and c["used_count"] == 1 for c in coupons)
+
+
+def test_coupon_validate(client, auth_header):
+    """公开校验券（10% off 1000 → 100）"""
+    _create_coupon(client, auth_header, code="VAL10", dtype="percent", value=10)
+    r = client.post("/admin/api/v1/cms/coupons/validate", json={"code": "VAL10", "total": "1000"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["valid"] is True
+    assert float(body["discount"]) == 100
+
+
+def test_coupon_validate_invalid(client):
+    """无效券"""
+    r = client.post("/admin/api/v1/cms/coupons/validate", json={"code": "NOPE", "total": "100"})
+    assert r.json()["valid"] is False
+
+
+def test_coupon_crud(client, auth_header):
+    c = client.post(
+        "/admin/api/v1/cms/coupons",
+        json={"code": "CRUD1", "name": "C", "discount_type": "fixed", "discount_value": 50},
+        headers=auth_header,
+    ).json()
+    assert c["id"]
+    assert client.put(f"/admin/api/v1/cms/coupons/{c['id']}", json={"name": "新"}, headers=auth_header).json()["name"] == "新"
+    assert client.delete(f"/admin/api/v1/cms/coupons/{c['id']}", headers=auth_header).status_code == 200

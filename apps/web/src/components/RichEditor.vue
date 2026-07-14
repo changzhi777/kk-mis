@@ -16,8 +16,10 @@
       </el-button-group>
       <el-button size="small" @click="cmd((c) => c.undo().run())">撤销</el-button>
       <el-button size="small" @click="cmd((c) => c.redo().run())">重做</el-button>
+      <el-button size="small" @click="pickerVisible = true">🖼 插入图片</el-button>
     </div>
     <EditorContent :editor="editor" class="content" />
+    <MediaPicker v-model="pickerVisible" @confirm="onPickImage" />
   </div>
 </template>
 
@@ -26,10 +28,11 @@
  * TipTap 富文本编辑器封装（v-model 双向 + DOMPurify 净化输出防 XSS）。
  * 复用项目 XSS 防护模式（参考 OaAgent.vue 的 DOMPurify 用法）。
  */
-import { onBeforeUnmount, watch } from 'vue'
+import { onBeforeUnmount, ref, watch } from 'vue'
 import { EditorContent, useEditor } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import DOMPurify from 'dompurify'
+import MediaPicker from './MediaPicker.vue'
 
 const props = defineProps<{ modelValue: string }>()
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
@@ -60,6 +63,14 @@ watch(
 )
 
 onBeforeUnmount(() => editor.value?.destroy())
+
+// 从素材库选图插入富文本
+const pickerVisible = ref(false)
+function onPickImage(urls: string[]) {
+  for (const url of urls) {
+    editor.value?.chain().focus().insertContent(`<img src="${url}" alt="" />`).run()
+  }
+}
 </script>
 
 <style scoped>

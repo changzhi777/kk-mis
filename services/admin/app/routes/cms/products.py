@@ -49,15 +49,18 @@ async def _load_detail(session: AsyncSession, p: TourProduct) -> TourProductDeta
 async def list_products(
     type: str | None = None,
     status: str | None = None,
+    category: str | None = None,
     session: AsyncSession = Depends(get_session),
     _=Depends(require_permission("cms:product:list")),
 ):
-    """产品列表（管理后台，按 type/status 过滤）"""
+    """产品列表（管理后台，按 type/status/category 过滤）"""
     q = select(TourProduct).order_by(TourProduct.sort, TourProduct.id.desc())
     if type:
         q = q.where(TourProduct.type == type)
     if status:
         q = q.where(TourProduct.status == status)
+    if category:
+        q = q.where(TourProduct.category == category)
     items = (await session.execute(q)).scalars().all()
     return {"items": [TourProductOut.model_validate(p).model_dump() for p in items]}
 

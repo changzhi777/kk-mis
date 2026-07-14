@@ -17,9 +17,16 @@
         <el-col :span="8"><el-form-item label="产品类型"><el-select v-model="form.type" @change="onTypeChange"><el-option label="订制游" value="custom" /><el-option label="权益卡" value="pass" /></el-select></el-form-item></el-col>
         <el-col :span="8"><el-form-item label="目的地"><el-input v-model="form.destination" /></el-form-item></el-col>
         <el-col :span="8"><el-form-item label="主题"><el-input v-model="form.theme" placeholder="海岛/亲子/商务" /></el-form-item></el-col>
-        <el-col :span="12"><el-form-item label="状态"><el-select v-model="form.status"><el-option label="草稿" value="draft" /><el-option label="已发布" value="published" /><el-option label="已归档" value="archived" /></el-select></el-form-item></el-col>
-        <el-col :span="6"><el-form-item label="排序"><el-input-number v-model="form.sort" :min="0" /></el-form-item></el-col>
-        <el-col :span="6"><el-form-item label="封面图URL"><el-input v-model="form.cover_image" placeholder="素材库复制" /></el-form-item></el-col>
+        <el-col :span="8"><el-form-item label="分类"><el-select v-model="form.category" clearable><el-option v-for="c in categories" :key="c" :label="c" :value="c" /></el-select></el-form-item></el-col>
+        <el-col :span="8"><el-form-item label="标签"><el-input v-model="tagsText" placeholder="逗号分隔，如 蜜月,海岛" /></el-form-item></el-col>
+        <el-col :span="8"><el-form-item label="状态"><el-select v-model="form.status"><el-option label="草稿" value="draft" /><el-option label="已发布" value="published" /><el-option label="已归档" value="archived" /></el-select></el-form-item></el-col>
+        <el-col :span="8"><el-form-item label="排序"><el-input-number v-model="form.sort" :min="0" /></el-form-item></el-col>
+        <el-col :span="8"><el-form-item label="封面图">
+          <div class="row-line">
+            <el-input v-model="form.cover_image" placeholder="URL 或素材库选" />
+            <el-button link type="primary" @click="coverPickerVisible = true">选</el-button>
+          </div>
+        </el-form-item></el-col>
       </el-row>
       <el-form-item label="摘要"><el-input v-model="form.summary" type="textarea" :rows="2" /></el-form-item>
       <el-form-item label="亮点"><el-input v-model="highlightsText" type="textarea" :rows="2" placeholder="一行一个亮点" /></el-form-item>
@@ -28,12 +35,13 @@
       <el-form-item label="内容"><RichEditor v-model="form.content" /></el-form-item>
 
       <el-divider content-position="left">图集</el-divider>
-      <el-form-item label="图片URL">
+      <el-form-item label="图片">
         <div v-for="(_, i) in gallery" :key="i" class="row-line">
-          <el-input v-model="gallery[i]" placeholder="图片 URL（可从素材库复制）" />
+          <el-input v-model="gallery[i]" placeholder="图片 URL" />
           <el-button link type="danger" @click="gallery.splice(i, 1)">删</el-button>
         </div>
-        <el-button link type="primary" @click="gallery.push('')">+ 添加图片</el-button>
+        <el-button link type="primary" @click="gallery.push('')">+ 手动添加</el-button>
+        <el-button link type="primary" @click="galleryPickerVisible = true">从素材库多选</el-button>
       </el-form-item>
 
       <!-- A 订制游扩展 -->
@@ -72,6 +80,9 @@
         </el-form-item>
       </template>
     </el-form>
+
+    <MediaPicker v-model="coverPickerVisible" @confirm="onPickCover" />
+    <MediaPicker v-model="galleryPickerVisible" multiple @confirm="onPickGallery" />
   </el-card>
 </template>
 <script setup lang="ts">
@@ -79,6 +90,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import RichEditor from '@/components/RichEditor.vue'
+import MediaPicker from '@/components/MediaPicker.vue'
 import cmsApi from '@/api/cms'
 import { getApiError } from '@/api/admin'
 import type { TourProduct } from '@/api/cms'
@@ -96,6 +108,8 @@ interface EditForm {
   type: TourProduct['type']
   destination: string
   theme: string
+  category: string
+  tags: string[]
   cover_image: string
   summary: string
   content: string
@@ -109,10 +123,13 @@ interface EditForm {
   pass_config?: TourProduct['pass_config']
 }
 
+const categories = ['国内', '海外', '周边', '主题乐园', '邮轮', '其他']
+
 function emptyForm(): EditForm {
   return {
     title: '', slug: '', type: 'custom',
-    destination: '', theme: '', cover_image: '',
+    destination: '', theme: '', category: '', tags: [],
+    cover_image: '',
     summary: '', content: '', highlights: [],
     status: 'draft', sort: 0, seo_title: '', seo_description: '',
     gallery: [],
@@ -127,14 +144,28 @@ const highlightsText = computed({
   get: () => (form.highlights || []).join('\n'),
   set: (v: string) => { form.highlights = v.split('\n').filter((x) => x.trim()) },
 })
+// tags 文本双向（逗号分隔）
+const tagsText = computed({
+  get: () => (form.tags || []).join(', '),
+  set: (v: string) => { form.tags = v.split(/[,，]/).map((x) => x.trim()).filter(Boolean) },
+})
 // gallery 只读代理（模板直接改数组项/push/splice，reactive 响应）
 const gallery = computed(() => form.gallery ?? [])
+
+// 素材选择器
+const coverPickerVisible = ref(false)
+const galleryPickerVisible = ref(false)
+function onPickCover(urls: string[]) {
+  if (urls[0]) form.cover_image = urls[0]
+}
+function onPickGallery(urls: string[]) {
+  form.gallery.push(...urls)
+}
 
 const idParam = route.params.id as string
 const isNew = idParam === 'new'
 
 function onTypeChange(t: string) {
-  // 切换类型时确保对应扩展存在
   if (t === 'custom' && !form.custom) form.custom = emptyForm().custom
   if (t === 'pass' && !form.pass_config) form.pass_config = emptyForm().pass_config
 }
@@ -166,7 +197,6 @@ function back() { router.push('/cms/product') }
 async function save() {
   saving.value = true
   try {
-    // 只提交对应 type 的扩展（剔除另一类脏数据）
     const payload: TourProduct = { ...form }
     if (form.type === 'custom') payload.pass_config = undefined
     else payload.custom = undefined

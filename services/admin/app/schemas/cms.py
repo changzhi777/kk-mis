@@ -85,6 +85,8 @@ class TourProductCreate(BaseModel):
     type: str = Field(..., pattern="^(custom|pass)$")  # custom(订制游) | pass(权益卡)
     destination: Optional[str] = None
     theme: Optional[str] = None
+    category: Optional[str] = None  # 分类：国内/海外/周边
+    tags: List[str] = []
     cover_image: Optional[str] = None
     gallery: List[str] = []
     video_url: Optional[str] = None
@@ -105,6 +107,8 @@ class TourProductUpdate(BaseModel):
     slug: Optional[str] = None
     destination: Optional[str] = None
     theme: Optional[str] = None
+    category: Optional[str] = None
+    tags: Optional[List[str]] = None
     cover_image: Optional[str] = None
     gallery: Optional[List[str]] = None
     video_url: Optional[str] = None
@@ -128,6 +132,8 @@ class TourProductOut(BaseModel):
     type: str
     destination: Optional[str] = None
     theme: Optional[str] = None
+    category: Optional[str] = None
+    tags: List[str] = []
     cover_image: Optional[str] = None
     summary: Optional[str] = None
     highlights: List[str] = []
@@ -150,3 +156,113 @@ class TourProductDetail(TourProductOut):
     seo_description: Optional[str] = None
     custom: Optional[TourCustomSchema] = None
     pass_config: Optional[TourPassSchema] = None
+
+
+# ===== 询价线索（订制游 A，公开提交）=====
+class InquiryLeadCreate(BaseModel):
+    """询价线索公开提交（无需登录）"""
+
+    product_id: Optional[int] = None
+    name: str = Field(..., max_length=50)
+    phone: str = Field(..., max_length=30)
+    wechat: Optional[str] = Field(None, max_length=50)
+    destination: Optional[str] = None
+    travel_date: Optional[str] = None
+    people: Optional[int] = None
+    budget: Optional[str] = None
+    remark: Optional[str] = None
+
+
+class InquiryLeadOut(BaseModel):
+    id: int
+    product_id: Optional[int] = None
+    name: str
+    phone: str
+    wechat: Optional[str] = None
+    destination: Optional[str] = None
+    travel_date: Optional[str] = None
+    people: Optional[int] = None
+    budget: Optional[str] = None
+    remark: Optional[str] = None
+    status: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class InquiryLeadStatusUpdate(BaseModel):
+    status: str = Field(..., pattern="^(new|contacted|converted|closed)$")
+
+
+# ===== 订单（权益卡 C）=====
+class ProductOrderCreate(BaseModel):
+    """公开下单（无需登录）"""
+
+    product_id: int
+    quantity: int = Field(1, ge=1)
+    coupon_code: Optional[str] = None
+    buyer_name: str = Field(..., max_length=50)
+    buyer_phone: str = Field(..., max_length=30)
+    remark: Optional[str] = None
+
+
+class ProductOrderOut(BaseModel):
+    id: int
+    product_id: int
+    quantity: int
+    unit_price: Decimal
+    original_total: Decimal
+    discount: Decimal
+    total: Decimal
+    coupon_code: Optional[str] = None
+    buyer_name: str
+    buyer_phone: str
+    remark: Optional[str] = None
+    pay_status: str
+    paid_at: Optional[datetime] = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ===== 优惠券 =====
+class CouponCreate(BaseModel):
+    code: str = Field(..., max_length=50)
+    name: str = Field(..., max_length=100)
+    discount_type: str = Field(..., pattern="^(percent|fixed)$")
+    discount_value: Decimal
+    min_total: Decimal = Decimal("0")
+    max_uses: int = 0  # 0=不限
+    valid_from: Optional[datetime] = None
+    valid_until: Optional[datetime] = None
+    status: bool = True
+
+
+class CouponUpdate(BaseModel):
+    name: Optional[str] = None
+    discount_type: Optional[str] = None
+    discount_value: Optional[Decimal] = None
+    min_total: Optional[Decimal] = None
+    max_uses: Optional[int] = None
+    valid_from: Optional[datetime] = None
+    valid_until: Optional[datetime] = None
+    status: Optional[bool] = None
+
+
+class CouponOut(CouponCreate):
+    id: int
+    used_count: int
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CouponValidateRequest(BaseModel):
+    code: str
+    total: Decimal  # 订单原价
+
+
+class CouponValidateResponse(BaseModel):
+    valid: bool
+    discount: Decimal = Decimal("0")
+    reason: Optional[str] = None

@@ -12,6 +12,15 @@
         <el-radio-button value="custom">订制游</el-radio-button>
         <el-radio-button value="pass">权益卡</el-radio-button>
       </el-radio-group>
+      <el-select
+        v-model="categoryFilter"
+        placeholder="分类"
+        clearable
+        @change="load"
+        style="margin-left: 12px; width: 130px"
+      >
+        <el-option v-for="c in categories" :key="c" :label="c" :value="c" />
+      </el-select>
     </div>
     <el-table :data="items" v-loading="loading" stripe>
       <el-table-column label="标题" min-width="220">
@@ -48,6 +57,8 @@ const router = useRouter()
 const items = ref<TourProduct[]>([])
 const loading = ref(false)
 const typeFilter = ref<'' | TourProductType>('')
+const categoryFilter = ref('')
+const categories = ['国内', '海外', '周边', '主题乐园', '邮轮', '其他']
 
 const typeText = (t: string) => ({ custom: '订制游', pass: '权益卡' } as const)[t as 'custom' | 'pass']
 const typeTag = (t: string) => ({ custom: 'warning', pass: 'success' } as const)[t as 'custom' | 'pass']
@@ -59,7 +70,10 @@ const statusTag = (s: string) =>
 async function load() {
   loading.value = true
   try {
-    items.value = await cmsApi.listProducts(typeFilter.value ? { type: typeFilter.value } : undefined)
+    const params: { type?: TourProductType; category?: string } = {}
+    if (typeFilter.value) params.type = typeFilter.value
+    if (categoryFilter.value) params.category = categoryFilter.value
+    items.value = await cmsApi.listProducts(params)
   } catch (e: unknown) { ElMessage.error(getApiError(e, '加载失败')) } finally { loading.value = false }
 }
 function goNew() { router.push('/cms/product/new') }

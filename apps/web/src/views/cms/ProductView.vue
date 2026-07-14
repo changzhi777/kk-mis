@@ -8,7 +8,9 @@
           <h1>{{ p.title }}</h1>
           <div class="meta">
             <el-tag v-if="p.destination" size="large" effect="dark">📍 {{ p.destination }}</el-tag>
+            <el-tag v-if="p.category" size="large" type="info" effect="dark">{{ p.category }}</el-tag>
             <el-tag v-if="p.theme" size="large" type="warning" effect="dark">{{ p.theme }}</el-tag>
+            <el-tag v-for="(t, i) in (p.tags || [])" :key="i" size="large" effect="dark">{{ t }}</el-tag>
             <el-tag size="large" :type="p.type === 'custom' ? 'warning' : 'success'" effect="dark">
               {{ p.type === 'custom' ? '高端订制游' : '旅游权益卡' }}
             </el-tag>
@@ -18,15 +20,11 @@
       </div>
 
       <div class="container">
-        <!-- 亮点 -->
         <section v-if="p.highlights?.length" class="block">
           <h2>产品亮点</h2>
-          <ul class="highlights">
-            <li v-for="(h, i) in p.highlights" :key="i">{{ h }}</li>
-          </ul>
+          <ul class="highlights"><li v-for="(h, i) in p.highlights" :key="i">{{ h }}</li></ul>
         </section>
 
-        <!-- 富文本介绍（DOMPurify 净化防 XSS） -->
         <section v-if="p.content" class="block">
           <h2>产品介绍</h2>
           <div class="rich-content" v-html="sanitizedContent"></div>
@@ -53,7 +51,7 @@
           <div v-if="p.custom.price_mode === 'inquiry'" class="price-note">💎 一单一议，按需定制报价</div>
         </section>
 
-        <!-- C 权益卡：权益清单 -->
+        <!-- C 权益卡 -->
         <section v-if="p.type === 'pass' && p.pass_config" class="block">
           <h2>权益清单</h2>
           <div class="pass-price">
@@ -68,17 +66,13 @@
             </div>
           </div>
           <div v-if="p.pass_config.usage_rules" class="usage">
-            <h3>使用规则</h3>
-            <p>{{ p.pass_config.usage_rules }}</p>
+            <h3>使用规则</h3><p>{{ p.pass_config.usage_rules }}</p>
           </div>
         </section>
 
-        <!-- 图集 -->
         <section v-if="p.gallery?.length" class="block">
           <h2>图集</h2>
-          <div class="gallery">
-            <img v-for="(g, i) in p.gallery" :key="i" :src="g" loading="lazy" class="gallery-img" />
-          </div>
+          <div class="gallery"><img v-for="(g, i) in p.gallery" :key="i" :src="g" loading="lazy" class="gallery-img" /></div>
         </section>
       </div>
 
@@ -87,24 +81,104 @@
         <span class="cta-type">{{ p.type === 'custom' ? '高端订制游' : '旅游权益卡' }}</span>
         <el-button type="primary" size="large" @click="consult">{{ p.type === 'custom' ? '咨询定制' : '立即购买' }}</el-button>
       </div>
+
+      <!-- 订制游询价表单 -->
+      <el-dialog v-model="leadDialog" title="咨询定制" width="500">
+        <el-form :model="lead" label-width="80px">
+          <el-form-item label="姓名" required><el-input v-model="lead.name" /></el-form-item>
+          <el-form-item label="电话" required><el-input v-model="lead.phone" /></el-form-item>
+          <el-form-item label="微信"><el-input v-model="lead.wechat" /></el-form-item>
+          <el-form-item label="目的地"><el-input v-model="lead.destination" /></el-form-item>
+          <el-form-item label="出行日期"><el-input v-model="lead.travel_date" placeholder="如 2026-08" /></el-form-item>
+          <el-form-item label="人数"><el-input-number v-model="lead.people" :min="1" controls-position="right" /></el-form-item>
+          <el-form-item label="预算"><el-input v-model="lead.budget" placeholder="如 2万/人" /></el-form-item>
+          <el-form-item label="备注"><el-input v-model="lead.remark" type="textarea" :rows="3" /></el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button @click="leadDialog = false">取消</el-button>
+          <el-button type="primary" :loading="submitting" @click="submit">提交咨询</el-button>
+        </template>
+      </el-dialog>
+
+      <!-- 权益卡购买弹窗 -->
+      <el-dialog v-model="buyDialog" title="购买权益卡" width="480">
+        <el-form label-width="90px">
+          <el-form-item label="数量"><el-input-number v-model="buyForm.quantity" :min="1" @change="recalc" /></el-form-item>
+          <el-form-item label="优惠券码">
+            <div class="row-line">
+              <el-input v-model="buyForm.coupon_code" placeholder="选填" @change="recalc" />
+              <el-button link type="primary" @click="recalc">应用</el-button>
+            </div>
+          </el-form-item>
+          <el-form-item label="价格">
+            <div>
+              <div>原价 ¥{{ (unitPrice * buyForm.quantity).toFixed(2) }}</div>
+              <div v-if="discountVal > 0" class="disc">优惠 -¥{{ discountVal.toFixed(2) }}</div>
+              <div class="paid">实付 ¥{{ Math.max(unitPrice * buyForm.quantity - discountVal, 0).toFixed(2) }}</div>
+            </div>
+          </el-form-item>
+          <el-form-item label="姓名" required><el-input v-model="buyForm.buyer_name" /></el-form-item>
+          <el-form-item label="电话" required><el-input v-model="buyForm.buyer_phone" /></el-form-item>
+        </el-form>
+        <el-alert
+          v-if="createdOrder"
+          :title="`订单 #${createdOrder.id} 已创建，实付 ¥${Number(createdOrder.total).toFixed(2)}`"
+          type="success"
+          :closable="false"
+          style="margin-bottom: 12px"
+        />
+        <template #footer>
+          <el-button @click="buyDialog = false">取消</el-button>
+          <el-button v-if="!createdOrder" type="primary" :loading="creating" @click="createOrd">创建订单</el-button>
+          <el-button v-else type="primary" :loading="paying" @click="payOrd">模拟支付</el-button>
+        </template>
+      </el-dialog>
     </template>
   </div>
 </template>
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import DOMPurify from 'dompurify'
 import cmsApi from '@/api/cms'
-import type { TourProduct } from '@/api/cms'
+import { getApiError } from '@/api/admin'
+import type { InquiryLead, ProductOrder, TourProduct } from '@/api/cms'
 
 const route = useRoute()
 const p = ref<TourProduct | null>(null)
 const loading = ref(false)
 const notFound = ref(false)
 
-// 富文本经 DOMPurify 净化（复用项目 XSS 防护，content 来自后台编辑需防注入）
 const sanitizedContent = computed(() => (p.value?.content ? DOMPurify.sanitize(p.value.content) : ''))
+
+// SEO meta（og:title/description/image，微信分享卡片用）
+watch(
+  p,
+  (val) => {
+    if (!val) return
+    document.title = val.seo_title || val.title || '产品详情'
+    setMeta('og:title', val.title || '')
+    setMeta('og:description', val.seo_description || val.summary || '')
+    if (val.cover_image) setMeta('og:image', val.cover_image)
+  },
+  { immediate: true }
+)
+function setMeta(prop: string, content: string) {
+  let el = document.querySelector(`meta[property="${prop}"]`) as HTMLMetaElement | null
+  if (!el) {
+    el = document.createElement('meta')
+    el.setAttribute('property', prop)
+    document.head.appendChild(el)
+  }
+  el.content = content
+}
+
+// 询价表单
+const leadDialog = ref(false)
+const submitting = ref(false)
+const emptyLead = (): InquiryLead => ({ name: '', phone: '', wechat: '', destination: '', travel_date: '', people: 1, budget: '', remark: '' })
+const lead = reactive<InquiryLead>(emptyLead())
 
 async function load() {
   loading.value = true
@@ -118,8 +192,92 @@ async function load() {
 }
 
 function consult() {
-  // 演示占位：实际接客服微信/下单流程
-  ElMessage.info('请通过客服微信联系')
+  if (p.value?.type === 'custom') {
+    leadDialog.value = true
+  } else {
+    // 权益卡：打开购买弹窗
+    Object.assign(buyForm, { quantity: 1, coupon_code: '', buyer_name: '', buyer_phone: '' })
+    createdOrder.value = null
+    discountVal.value = 0
+    buyDialog.value = true
+  }
+}
+
+async function submit() {
+  if (!lead.name || !lead.phone) {
+    ElMessage.warning('请填写姓名和电话')
+    return
+  }
+  submitting.value = true
+  try {
+    await cmsApi.submitLead({ ...lead, product_id: p.value?.id })
+    ElMessage.success('提交成功，客服将尽快联系您')
+    leadDialog.value = false
+    Object.assign(lead, emptyLead())
+  } catch (e: unknown) {
+    ElMessage.error(getApiError(e, '提交失败'))
+  } finally {
+    submitting.value = false
+  }
+}
+
+// 权益卡购买
+const unitPrice = computed(() => (p.value?.pass_config ? Number(p.value.pass_config.face_value) : 0))
+const buyDialog = ref(false)
+const creating = ref(false)
+const paying = ref(false)
+const discountVal = ref(0)
+const createdOrder = ref<ProductOrder | null>(null)
+const buyForm = reactive({ quantity: 1, coupon_code: '', buyer_name: '', buyer_phone: '' })
+
+async function recalc() {
+  discountVal.value = 0
+  if (!buyForm.coupon_code) return
+  try {
+    const res = await cmsApi.validateCoupon(buyForm.coupon_code, unitPrice.value * buyForm.quantity)
+    if (res.valid) {
+      discountVal.value = Number(res.discount)
+    } else {
+      ElMessage.warning(res.reason || '券无效')
+    }
+  } catch {
+    /* 忽略校验错误 */
+  }
+}
+
+async function createOrd() {
+  if (!buyForm.buyer_name || !buyForm.buyer_phone) {
+    ElMessage.warning('请填写姓名和电话')
+    return
+  }
+  creating.value = true
+  try {
+    createdOrder.value = await cmsApi.createOrder({
+      product_id: p.value?.id as number,
+      quantity: buyForm.quantity,
+      coupon_code: buyForm.coupon_code || undefined,
+      buyer_name: buyForm.buyer_name,
+      buyer_phone: buyForm.buyer_phone,
+    })
+    ElMessage.success('订单已创建')
+  } catch (e: unknown) {
+    ElMessage.error(getApiError(e, '创建失败'))
+  } finally {
+    creating.value = false
+  }
+}
+
+async function payOrd() {
+  paying.value = true
+  try {
+    await cmsApi.payOrder(createdOrder.value?.id as number)
+    ElMessage.success('支付成功')
+    buyDialog.value = false
+  } catch (e: unknown) {
+    ElMessage.error(getApiError(e, '支付失败'))
+  } finally {
+    paying.value = false
+  }
 }
 
 onMounted(load)
@@ -166,4 +324,7 @@ onMounted(load)
 .gallery-img { width: 100%; height: 160px; object-fit: cover; border-radius: 8px; }
 .cta-bar { position: fixed; bottom: 0; left: 0; right: 0; background: var(--el-bg-color); border-top: 1px solid var(--el-border-color); padding: 10px 16px; display: flex; justify-content: center; align-items: center; gap: 16px; box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08); z-index: 10; }
 .cta-bar .cta-type { font-weight: 600; color: var(--el-text-color-primary); }
+.row-line { display: flex; gap: 6px; align-items: center; }
+.disc { color: var(--el-color-danger); font-size: 13px; }
+.paid { font-weight: 600; color: var(--el-color-primary); }
 </style>

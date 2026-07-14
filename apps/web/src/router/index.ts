@@ -237,6 +237,24 @@ const router = createRouter({
       component: () => import('@/views/cms/MerchantList.vue'),
       meta: { title: '合作商户', group: 'cms', permission: 'cms:merchant:list' },
     },
+    {
+      path: '/cms/lead',
+      name: 'cms-lead',
+      component: () => import('@/views/cms/LeadList.vue'),
+      meta: { title: '询价线索', group: 'cms', permission: 'cms:lead:list' },
+    },
+    {
+      path: '/cms/order',
+      name: 'cms-order',
+      component: () => import('@/views/cms/OrderList.vue'),
+      meta: { title: '产品订单', group: 'cms', permission: 'cms:order:list' },
+    },
+    {
+      path: '/cms/coupon',
+      name: 'cms-coupon',
+      component: () => import('@/views/cms/CouponList.vue'),
+      meta: { title: '优惠券', group: 'cms', permission: 'cms:coupon:list' },
+    },
   ],
 })
 

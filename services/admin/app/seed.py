@@ -97,6 +97,14 @@ _DEFAULT_MENUS = [
     ("cms:media:upload", "素材上传", "api", "/api/v1/cms/media", None, "cms:media", 2),
     ("cms:merchant:list", "商户查询", "api", "/api/v1/cms/merchants", None, "cms:merchant", 1),
     ("cms:merchant:save", "商户保存", "api", "/api/v1/cms/merchants", None, "cms:merchant", 2),
+    ("cms:lead", "询价线索", "menu", "/cms/lead", "Message", "cms", 40),
+    ("cms:lead:list", "线索查询", "api", "/api/v1/cms/leads", None, "cms:lead", 1),
+    ("cms:lead:save", "线索处理", "api", "/api/v1/cms/leads", None, "cms:lead", 2),
+    ("cms:order", "产品订单", "menu", "/cms/order", "ShoppingCart", "cms", 50),
+    ("cms:order:list", "订单查询", "api", "/api/v1/cms/orders", None, "cms:order", 1),
+    ("cms:coupon", "优惠券", "menu", "/cms/coupon", "Discount", "cms", 60),
+    ("cms:coupon:list", "券查询", "api", "/api/v1/cms/coupons", None, "cms:coupon", 1),
+    ("cms:coupon:save", "券保存", "api", "/api/v1/cms/coupons", None, "cms:coupon", 2),
 ]
 
 _DEFAULT_CATEGORIES = [
