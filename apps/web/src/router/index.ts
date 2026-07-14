@@ -219,6 +219,12 @@ const router = createRouter({
       component: () => import('@/views/agent/Commission.vue'),
       meta: { title: '分润报表', group: 'agent', permission: 'agent:commission:view' },
     },
+    {
+      path: '/agent/dashboard',
+      name: 'agent-dashboard',
+      component: () => import('@/views/agent/AgentDashboard.vue'),
+      meta: { title: '代理看板', group: 'agent', permission: 'agent:commission:view' },
+    },
     // 内容管理（CMS，2026-07-14：VIP 卡旅游产品介绍）
     {
       path: '/cms/product',
