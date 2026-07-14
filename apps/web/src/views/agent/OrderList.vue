@@ -111,7 +111,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import adminApi, { http, getApiError } from '@/api/admin'
 
 const items = ref<any[]>([])
@@ -188,6 +188,16 @@ function open() {
 }
 
 async function save() {
+  // V6 购买确认页：创建前二次确认（数量/折扣）
+  const q = quote.value
+  if (!q) { ElMessage.warning('报价未就绪'); return }
+  try {
+    await ElMessageBox.confirm(
+      `确认下单？数量 ${form.quantity} 张 · ${Math.round(q.discount_pct * 100)} 折（${q.tier}）`,
+      '购买确认',
+      { confirmButtonText: '确认下单', cancelButtonText: '取消', type: 'warning' },
+    )
+  } catch { return }
   saving.value = true
   try {
     await api.create({
