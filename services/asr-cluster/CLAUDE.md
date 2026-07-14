@@ -16,7 +16,7 @@
 
 ## 模块职责 (Module Responsibility)
 
-`kk-mis` ASR 集群管理器：注册多个 MLX Whisper 节点，心跳监控健康状态，提供负载均衡的任务分发。当前用于未来多 Mac 节点扩展（生产环境已有 meeting-notes 直接调单节点的简化路径）。
+`kk-cms` ASR 集群管理器：注册多个 MLX Whisper 节点，心跳监控健康状态，提供负载均衡的任务分发。当前用于未来多 Mac 节点扩展（生产环境已有 meeting-notes 直接调单节点的简化路径）。
 
 设计要点：
 - **节点注册表**（`NodeRegistry`）：节点 ID → `ASRNode`
@@ -76,7 +76,7 @@ docker compose up -d
 {
   "id": "mlx-mac-m5",
   "url": "http://100.88.88.34:9000",
-  "api_key": "kk-mis-asr-local-dev-key-2026",
+  "api_key": "kk-cms-asr-local-dev-key-2026",
   "model": "mlx-community/whisper-large-v3-turbo",
   "priority": 0,
   "max_concurrent": 2
@@ -117,7 +117,7 @@ httpx>=0.27
 ASRNode(
     id="mlx-mac-m5",
     url=os.getenv("DEFAULT_ASR_NODE_URL", "http://100.88.88.34:9000"),
-    api_key=os.getenv("MLX_ASR_API_KEY", "kk-mis-asr-local-dev-key-2026"),
+    api_key=os.getenv("MLX_ASR_API_KEY", "kk-cms-asr-local-dev-key-2026"),
     model="mlx-community/belle-whisper-large-v3-zh-punct-fp16",
     priority=0,
     max_concurrent=2,
@@ -204,7 +204,7 @@ curl http://localhost:9100/nodes
 # 注册节点
 curl -X POST http://localhost:9100/nodes/register \
   -H "Content-Type: application/json" \
-  -d '{"id":"test","url":"http://localhost:9000","api_key":"kk-mis-asr-local-dev-key-2026"}'
+  -d '{"id":"test","url":"http://localhost:9000","api_key":"kk-cms-asr-local-dev-key-2026"}'
 ```
 
 ---

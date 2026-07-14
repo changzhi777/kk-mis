@@ -12,7 +12,7 @@
 
 ## 模块职责 (Module Responsibility)
 
-`kk-mis` 后端的**一站式管理 API**，承载 5 大业务域（企业管理 + 财务 + 资产 + 代理 + OA），共用一套 RBAC 权限、JWT 认证、审计日志。所有路由统一加 `/admin` 前缀，便于 nginx 与 meeting-notes 的 `/api` 区分。
+`kk-cms` 后端的**一站式管理 API**，承载 5 大业务域（企业管理 + 财务 + 资产 + 代理 + OA），共用一套 RBAC 权限、JWT 认证、审计日志。所有路由统一加 `/admin` 前缀，便于 nginx 与 meeting-notes 的 `/api` 区分。
 
 业务域拆分：
 - **企业管理**（system）：用户/角色/权限(树形)/部门 + JWT + 动态菜单 + 审计
@@ -163,9 +163,9 @@ httpx>=0.28            # OAuth 第三方 API
 | `APP_PORT` | 8300 | 监听端口 |
 | `DB_DRIVER` | `sqlite` | 生产改 `postgres` |
 | `POSTGRES_DB` | `kk_admin` | ⚠️ 与 meeting-notes 不同 |
-| `POSTGRES_USER` | `postgres` | ⚠️ 不是 `kk_mis` |
+| `POSTGRES_USER` | `postgres` | ⚠️ 不是 `kk_cms` |
 | `REDIS_DB` | 1 | ⚠️ 与 meeting-notes（DB 0）分开 |
-| `JWT_SECRET` | `kk-mis-jwt-secret-change-in-prod` | **必须与 meeting-notes 一致** |
+| `JWT_SECRET` | `kk-cms-jwt-secret-change-in-prod` | **必须与 meeting-notes 一致** |
 | `JWT_ALGORITHM` | `HS256` | |
 | `ACCESS_TOKEN_EXPIRE` | 7200 (2h) | |
 | `REFRESH_TOKEN_EXPIRE` | 604800 (7d) | |
@@ -219,7 +219,7 @@ PYTHONPATH=. pytest tests/ -v
 ## 常见问题 (FAQ)
 
 **Q1: 生产数据库连接失败？**
-A: 检查 `POSTGRES_USER` 是 `postgres` 而非 `kk_mis`；`POSTGRES_DB` 是 `kk_admin` 而非 `kk_mis`（与 meeting-notes 不同）。
+A: 检查 `POSTGRES_USER` 是 `postgres` 而非 `kk_cms`；`POSTGRES_DB` 是 `kk_admin` 而非 `kk_cms`（与 meeting-notes 不同）。
 
 **Q2: 跨服务 token 验证失败？**
 A: admin 与 meeting-notes 必须共享同一个 `JWT_SECRET`。

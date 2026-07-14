@@ -3,7 +3,7 @@
     <div class="logo">
       <el-icon class="logo-icon"><Headset /></el-icon>
       <span v-show="!collapsed" class="logo-text">
-        <strong>kk-mis</strong>
+        <strong>kk-CMS</strong>
         <small>企业管理 · 财务</small>
       </span>
     </div>

@@ -5,7 +5,7 @@
         <el-icon class="logo"><Headset /></el-icon>
         <div>
           <h2>注册新账号</h2>
-          <p>加入 kk-mis，开启高效办公</p>
+          <p>加入 kk-cms，开启高效办公</p>
         </div>
       </div>
 

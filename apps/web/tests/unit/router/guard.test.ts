@@ -41,7 +41,7 @@ function makeMiniRouter(): Router {
 
   // 安装守卫逻辑（与 src/router/index.ts::beforeEach 一致）
   router.beforeEach(async (to: any, _from: any, next: any) => {
-    document.title = (to.meta.title as string) || 'kk-mis'
+    document.title = (to.meta.title as string) || 'kk-cms'
     const userStore = useUserStore()
     if (to.meta.public) {
       next()

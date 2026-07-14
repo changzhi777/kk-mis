@@ -1,4 +1,4 @@
-# kk-mis 全栈 dev 一键启动（asr-cluster 单独 compose，见 services/asr-cluster/）
+# kk-cms 全栈 dev 一键启动（asr-cluster 单独 compose，见 services/asr-cluster/）
 #
 # 用法：
 #   1. cp services/admin/.env.example services/admin/.env
@@ -15,8 +15,8 @@ services:
     build:
       context: ./services/meeting-notes
       dockerfile: Dockerfile
-    image: kk-mis/meeting-notes:1.0.0
-    container_name: kk-mis-meeting-notes
+    image: kk-cms/meeting-notes:1.0.0
+    container_name: kk-cms-meeting-notes
     restart: unless-stopped
     ports:
       - "8200:8200"
@@ -43,8 +43,8 @@ services:
     build:
       context: ./services/admin
       dockerfile: Dockerfile
-    image: kk-mis/admin:1.0.0
-    container_name: kk-mis-admin
+    image: kk-cms/admin:1.0.0
+    container_name: kk-cms-admin
     restart: unless-stopped
     ports:
       - "8300:8300"

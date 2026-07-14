@@ -27,7 +27,7 @@ curl http://localhost:9000/health
 ### 转写
 ```bash
 curl -X POST http://localhost:9000/transcribe \
-  -H "X-API-Key: kk-mis-asr-local-dev-key-2026" \
+  -H "X-API-Key: kk-cms-asr-local-dev-key-2026" \
   -F "audio=@meeting.mp3" \
   -F "language=zh"
 ```
@@ -87,7 +87,7 @@ import httpx
 with open('test.mp3', 'rb') as f:
     r = httpx.post(
         'http://localhost:9000/transcribe',
-        headers={'X-API-Key': 'kk-mis-asr-local-dev-key-2026'},
+        headers={'X-API-Key': 'kk-cms-asr-local-dev-key-2026'},
         files={'audio': f},
         data={'language': 'zh'}
     )

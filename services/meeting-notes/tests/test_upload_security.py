@@ -114,4 +114,4 @@ def test_root_endpoint(client):
     assert r.status_code == 200
     body = r.json()
     assert "name" in body
-    assert body["name"] == "kk-mis Meeting Notes"
+    assert body["name"] == "kk-cms Meeting Notes"

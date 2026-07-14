@@ -103,7 +103,7 @@ httpx>=0.27.0
 ### 关键环境变量（app/config.py）
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
-| `MLX_ASR_API_KEY` | `kk-mis-asr-default-key-change-me` | ⚠️ 必须与 meeting-notes 一致 |
+| `MLX_ASR_API_KEY` | `kk-cms-asr-default-key-change-me` | ⚠️ 必须与 meeting-notes 一致 |
 | `MLX_ASR_MODEL` | `mlx-community/whisper-large-v3-turbo` | HuggingFace 模型 ID |
 | `MLX_ASR_CACHE_DIR` | `./models` | 模型本地缓存目录 |
 | `MLX_ASR_DEFAULT_LANG` | `zh` | 默认语言 |
@@ -186,7 +186,7 @@ PYTHONPATH=. pytest tests/ -v
 curl http://localhost:9000/health
 # 上传测试
 curl -X POST http://localhost:9000/transcribe \
-  -H "X-API-Key: kk-mis-asr-local-dev-key-2026" \
+  -H "X-API-Key: kk-cms-asr-local-dev-key-2026" \
   -F "audio=@./test.mp3" \
   -F "language=zh"
 ```

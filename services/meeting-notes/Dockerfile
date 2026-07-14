@@ -1,4 +1,4 @@
-# kk-mis meeting-notes — 会议纪要主应用 (:8200)
+# kk-cms meeting-notes — 会议纪要主应用 (:8200)
 FROM python:3.12-slim
 
 ENV TZ=Asia/Shanghai \

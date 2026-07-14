@@ -8,7 +8,7 @@ import os
 # 必须在 import app 之前设环境
 os.environ["DB_DRIVER"] = "sqlite"
 os.environ["SQLITE_PATH"] = "./test.db"
-os.environ["JWT_SECRET"] = "kk-mis-test-jwt-secret-32bytes-min-2026!"
+os.environ["JWT_SECRET"] = "kk-cms-test-jwt-secret-32bytes-min-2026!"
 os.environ["INIT_ADMIN_USERNAME"] = "test_admin"
 os.environ["LOG_LEVEL"] = "WARNING"
 

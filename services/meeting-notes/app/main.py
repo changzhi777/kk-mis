@@ -1,4 +1,4 @@
-"""kk-mis 会议纪要主应用入口"""
+"""kk-cms 会议纪要主应用入口"""
 import logging
 from contextlib import asynccontextmanager
 
@@ -14,7 +14,7 @@ logging.basicConfig(
     level=settings.log_level,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
-logger = logging.getLogger("kk-mis")
+logger = logging.getLogger("kk-cms")
 
 
 @asynccontextmanager
@@ -22,7 +22,7 @@ async def lifespan(app: FastAPI):
     """应用生命周期"""
     # 启动
     logger.info("=" * 60)
-    logger.info("kk-mis 会议纪要主应用启动中...")
+    logger.info("kk-cms 会议纪要主应用启动中...")
     logger.info(f"  - 监听: {settings.host}:{settings.port}")
     logger.info(f"  - 数据库: {settings.database_display}")
     logger.info(f"  - LLM: {settings.glm_model} (GLM)")
@@ -36,11 +36,11 @@ async def lifespan(app: FastAPI):
     yield
     # 关闭
     await close_db()
-    logger.info("kk-mis 关闭")
+    logger.info("kk-cms 关闭")
 
 
 app = FastAPI(
-    title="kk-mis Meeting Notes API",
+    title="kk-cms Meeting Notes API",
     description="MIS 管理系统 - 会议纪要 AI 整理服务",
     version="0.1.0",
     lifespan=lifespan,
@@ -95,7 +95,7 @@ async def llm_providers():
 @app.get("/")
 async def root():
     return {
-        "name": "kk-mis Meeting Notes",
+        "name": "kk-cms Meeting Notes",
         "version": "0.1.0",
         "docs": "/docs",
         "health": "/health",

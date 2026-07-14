@@ -6,7 +6,7 @@
           <el-icon class="logo-icon"><Headset /></el-icon>
         </div>
         <div class="title-wrap">
-          <h2>kk-mis</h2>
+          <h2>kk-CMS</h2>
           <p>企业管理 · 会议纪要 · 财务</p>
         </div>
       </div>

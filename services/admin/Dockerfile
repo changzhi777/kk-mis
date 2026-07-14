@@ -1,4 +1,4 @@
-# kk-mis admin — 企业管理 + 财务 + 资产 + 代理 + OA (:8300)
+# kk-cms admin — 企业管理 + 财务 + 资产 + 代理 + OA (:8300)
 FROM python:3.12-slim
 
 ENV TZ=Asia/Shanghai \

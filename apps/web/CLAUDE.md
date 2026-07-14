@@ -12,7 +12,7 @@
 
 ## 模块职责 (Module Responsibility)
 
-`kk-mis` 系统的统一前端 SPA，整合 6 大模块（会议纪要 / 企业管理 / 财务 / 资产 / 代理 / OA）的全部 UI。Teal 湖青主题（`#0d9488`），按需引入 Element Plus（bundle 减小 63%）。
+`kk-cms` 系统的统一前端 SPA，整合 6 大模块（会议纪要 / 企业管理 / 财务 / 资产 / 代理 / OA）的全部 UI。Teal 湖青主题（`#0d9488`），按需引入 Element Plus（bundle 减小 63%）。
 
 设计要点：
 - **单一代码库**：所有 view 在 `apps/web/src/views/` 下按业务域分目录（system / finance / asset / agent / oa / oauth）
@@ -150,7 +150,7 @@ pnpm preview          # 预览打包产物
 
 ```ts
 useUserStore = {
-  token: Ref<string>          // localStorage 'kk-mis-admin-token'
+  token: Ref<string>          // localStorage 'kk-cms-admin-token'
   userInfo: Ref<UserInfo | null>  // { id, username, name, roles, permissions }
   menus: Ref<any[]>           // 后端拉取的菜单树
 

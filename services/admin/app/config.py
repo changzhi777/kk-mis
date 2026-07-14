@@ -18,9 +18,9 @@ from pydantic import BaseModel, model_validator
 # ── 占位符检测（防硬编码 secret 被带进生产） ──────────────────────────
 _PLACEHOLDER_SECRETS = frozenset(
     {
-        "kk-mis-admin-secret-change-me",
-        "kk-mis-jwt-secret-change-in-prod",
-        "kk-mis-dev-secret-change-me",
+        "kk-cms-admin-secret-change-me",
+        "kk-cms-jwt-secret-change-in-prod",
+        "kk-cms-dev-secret-change-me",
         "change-me",
         "changeme",
         "",
@@ -112,7 +112,7 @@ class Settings(BaseModel):
             host=_env("APP_HOST", "0.0.0.0"),
             port=_env_int("APP_PORT", 8300),
             debug=_env_bool("APP_DEBUG"),
-            secret_key=_env("APP_SECRET_KEY", "kk-mis-admin-secret-change-me"),
+            secret_key=_env("APP_SECRET_KEY", "kk-cms-admin-secret-change-me"),
             app_env=_env("APP_ENV", "development"),
             db_driver=_env("DB_DRIVER", "sqlite"),
             postgres_host=_env("POSTGRES_HOST", "127.0.0.1"),
@@ -125,7 +125,7 @@ class Settings(BaseModel):
             redis_port=_env_int("REDIS_PORT", 6379),
             redis_password=_env("REDIS_PASSWORD", ""),
             redis_db=_env_int("REDIS_DB", 1),
-            jwt_secret=_env("JWT_SECRET", "kk-mis-jwt-secret-change-in-prod"),
+            jwt_secret=_env("JWT_SECRET", "kk-cms-jwt-secret-change-in-prod"),
             jwt_algorithm=_env("JWT_ALGORITHM", "HS256"),
             access_token_expire=_env_int("ACCESS_TOKEN_EXPIRE", 7200),
             refresh_token_expire=_env_int("REFRESH_TOKEN_EXPIRE", 604800),

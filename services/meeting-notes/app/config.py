@@ -11,7 +11,7 @@ class Settings(BaseModel):
     host: str = os.getenv("APP_HOST", "0.0.0.0")
     port: int = int(os.getenv("APP_PORT", "8000"))
     debug: bool = os.getenv("APP_DEBUG", "false").lower() == "true"
-    secret_key: str = os.getenv("APP_SECRET_KEY", "kk-mis-dev-secret-change-me")
+    secret_key: str = os.getenv("APP_SECRET_KEY", "kk-cms-dev-secret-change-me")
 
     # 数据库（默认 SQLite，便于开发；生产用 PostgreSQL）
     db_driver: str = os.getenv("DB_DRIVER", "sqlite")
@@ -19,8 +19,8 @@ class Settings(BaseModel):
     postgres_port: int = int(os.getenv("POSTGRES_PORT", "5432"))
     postgres_user: str = os.getenv("POSTGRES_USER", "postgres")
     postgres_password: str = os.getenv("POSTGRES_PASSWORD", "")
-    postgres_db: str = os.getenv("POSTGRES_DB", "kk_mis")
-    sqlite_path: str = os.getenv("SQLITE_PATH", "./storage/kk_mis.db")
+    postgres_db: str = os.getenv("POSTGRES_DB", "kk_cms")
+    sqlite_path: str = os.getenv("SQLITE_PATH", "./storage/kk_cms.db")
 
     # Redis
     redis_host: str = os.getenv("REDIS_HOST", "127.0.0.1")
@@ -39,9 +39,9 @@ class Settings(BaseModel):
     minimax_model: str = os.getenv("MINIMAX_MODEL", "MiniMax-Text-01")
 
     # API 鉴权（服务间/脚本用）
-    api_key: str = os.getenv("KK_MIS_API_KEY", "kk-mis-dev-key-change-in-prod")
+    api_key: str = os.getenv("KK_CMS_API_KEY", "kk-cms-dev-key-change-in-prod")
     # JWT 认证（与 admin 服务共用同一 secret，验证 admin 签发的用户 token）
-    jwt_secret: str = os.getenv("JWT_SECRET", "kk-mis-jwt-secret-change-in-prod")
+    jwt_secret: str = os.getenv("JWT_SECRET", "kk-cms-jwt-secret-change-in-prod")
     jwt_algorithm: str = os.getenv("JWT_ALGORITHM", "HS256")
     # CORS 允许的源（生产用逗号分隔列表）
     cors_origins: str = os.getenv("CORS_ORIGINS", "*")
@@ -57,7 +57,7 @@ class Settings(BaseModel):
     default_asr_node_url: str = os.getenv(
         "DEFAULT_ASR_NODE_URL", "http://100.88.88.34:9000"
     )
-    mlx_asr_api_key: str = os.getenv("MLX_ASR_API_KEY", "kk-mis-asr-local-dev-key-2026")
+    mlx_asr_api_key: str = os.getenv("MLX_ASR_API_KEY", "kk-cms-asr-local-dev-key-2026")
 
     # 文件存储
     upload_dir: str = os.getenv("UPLOAD_DIR", "./storage/uploads")

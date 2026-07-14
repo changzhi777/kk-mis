@@ -53,14 +53,14 @@ def test_dev_mode_with_placeholders_allowed(monkeypatch):
     s = _build_settings(
         monkeypatch,
         APP_ENV="development",
-        JWT_SECRET="kk-mis-jwt-secret-change-in-prod",
-        APP_SECRET_KEY="kk-mis-admin-secret-change-me",
+        JWT_SECRET="kk-cms-jwt-secret-change-in-prod",
+        APP_SECRET_KEY="kk-cms-admin-secret-change-me",
         DB_DRIVER="sqlite",
         INIT_ADMIN_PASSWORD="admin123",
     )
     print(f"DEBUG: env JWT_SECRET = {os.getenv('JWT_SECRET', 'NONE')[:30]}")
     print(f"DEBUG: settings.jwt_secret = {s.jwt_secret[:30]}")
-    assert s.jwt_secret == "kk-mis-jwt-secret-change-in-prod"
+    assert s.jwt_secret == "kk-cms-jwt-secret-change-in-prod"
 
 
 def test_production_mode_rejects_placeholder_jwt(monkeypatch):
@@ -69,7 +69,7 @@ def test_production_mode_rejects_placeholder_jwt(monkeypatch):
         _build_settings(
             monkeypatch,
             APP_ENV="production",
-            JWT_SECRET="kk-mis-jwt-secret-change-in-prod",
+            JWT_SECRET="kk-cms-jwt-secret-change-in-prod",
             APP_SECRET_KEY="real-app-secret-xyz",
             DB_DRIVER="sqlite",
             INIT_ADMIN_PASSWORD="StrongP@ss123!",

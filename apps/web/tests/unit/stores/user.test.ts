@@ -132,9 +132,9 @@ describe('stores/user — RBAC 核心', () => {
 
       expect(store.token).toBe('tok-123')
       expect(store.userInfo?.username).toBe('alice')
-      expect(localStorage.getItem('kk-mis-admin-token')).toBe('tok-123')
-      expect(localStorage.getItem('kk-mis-admin-refresh')).toBe('ref-456')
-      expect(JSON.parse(localStorage.getItem('kk-mis-admin-user') || '{}').username).toBe(
+      expect(localStorage.getItem('kk-cms-admin-token')).toBe('tok-123')
+      expect(localStorage.getItem('kk-cms-admin-refresh')).toBe('ref-456')
+      expect(JSON.parse(localStorage.getItem('kk-cms-admin-user') || '{}').username).toBe(
         'alice'
       )
     })
@@ -154,9 +154,9 @@ describe('stores/user — RBAC 核心', () => {
 
       expect(store.token).toBe('')
       expect(store.userInfo).toBeNull()
-      expect(localStorage.getItem('kk-mis-admin-token')).toBeNull()
-      expect(localStorage.getItem('kk-mis-admin-refresh')).toBeNull()
-      expect(localStorage.getItem('kk-mis-admin-user')).toBeNull()
+      expect(localStorage.getItem('kk-cms-admin-token')).toBeNull()
+      expect(localStorage.getItem('kk-cms-admin-refresh')).toBeNull()
+      expect(localStorage.getItem('kk-cms-admin-user')).toBeNull()
     })
   })
 })

@@ -11,7 +11,7 @@
 
 ## 模块职责 (Module Responsibility)
 
-`kk-mis` 会议纪要核心服务：上传音频 → ASR 转写 → LLM 智能整理 → 持久化。整合 MLX Whisper 本地 ASR 节点与多供应商 LLM（智谱 GLM-4.7 / minimax / 本地 oMLX），输出结构化纪要（摘要 / 要点 / 决策 / 行动项 / 参会人）。
+`kk-cms` 会议纪要核心服务：上传音频 → ASR 转写 → LLM 智能整理 → 持久化。整合 MLX Whisper 本地 ASR 节点与多供应商 LLM（智谱 GLM-4.7 / minimax / 本地 oMLX），输出结构化纪要（摘要 / 要点 / 决策 / 行动项 / 参会人）。
 
 设计要点：
 - **异步流水线**：上传接口立即返回，后台任务跑 ASR + LLM
@@ -113,8 +113,8 @@ python-dotenv>=1.0.0
 |------|--------|------|
 | `APP_PORT` | 8000（与 dev proxy 一致） | 实际生产 8200 |
 | `DB_DRIVER` | `sqlite` | |
-| `POSTGRES_DB` | `kk_mis` | ⚠️ 与 admin 不同 |
-| `POSTGRES_USER` | `postgres` | ⚠️ 不是 `kk_mis` |
+| `POSTGRES_DB` | `kk_cms` | ⚠️ 与 admin 不同 |
+| `POSTGRES_USER` | `postgres` | ⚠️ 不是 `kk_cms` |
 | `REDIS_DB` | 0 | |
 | `GLM_API_KEY` | 空 | 智谱 GLM |
 | `GLM_MODEL` | `glm-4.7` | |
@@ -125,8 +125,8 @@ python-dotenv>=1.0.0
 | `OMLX_MODEL` | `gemma-4-e4b-it-4bit` | |
 | `ASR_CLUSTER_URL` | `http://localhost:9100` | 集群管理 |
 | `DEFAULT_ASR_NODE_URL` | `http://100.88.88.34:9000` | Tailscale Mac |
-| `MLX_ASR_API_KEY` | `kk-mis-asr-local-dev-key-2026` | ⚠️ 与 mlx-asr 服务一致 |
-| `JWT_SECRET` | `kk-mis-jwt-secret-change-in-prod` | ⚠️ 与 admin 一致 |
+| `MLX_ASR_API_KEY` | `kk-cms-asr-local-dev-key-2026` | ⚠️ 与 mlx-asr 服务一致 |
+| `JWT_SECRET` | `kk-cms-jwt-secret-change-in-prod` | ⚠️ 与 admin 一致 |
 | `MAX_UPLOAD_MB` | 500 | |
 
 ---

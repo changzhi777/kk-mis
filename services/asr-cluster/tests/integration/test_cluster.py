@@ -130,7 +130,7 @@ def test_register_node_persists_in_list(asr_cluster_server):
         json={
             "id": f"test-mlx-{int(time.time())}",
             "url": "http://100.88.88.34:9000",
-            "api_key": "kk-mis-asr-local-dev-key-2026",
+            "api_key": "kk-cms-asr-local-dev-key-2026",
             "model": "mlx-community/whisper-large-v3-turbo",
             "priority": 0,
             "max_concurrent": 2,

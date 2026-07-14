@@ -13,7 +13,7 @@ class Settings(BaseModel):
     debug: bool = False
 
     # API Key（从环境变量读）
-    api_key: str = os.getenv("MLX_ASR_API_KEY", "kk-mis-asr-default-key-change-me")
+    api_key: str = os.getenv("MLX_ASR_API_KEY", "kk-cms-asr-default-key-change-me")
 
     # 模型
     model_name: str = os.getenv(

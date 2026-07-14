@@ -10,7 +10,7 @@
     <el-container>
       <el-header class="app-header">
         <el-button text circle :icon="isMobile ? Menu : collapsed ? Expand : Fold" @click="toggleSidebar" />
-        <h3 class="header-title">{{ route.meta.title || 'kk-mis' }}</h3>
+        <h3 class="header-title">{{ route.meta.title || 'kk-cms' }}</h3>
         <div class="header-right">
           <ThemeToggle />
           <el-dropdown v-if="userStore.userInfo" trigger="click">

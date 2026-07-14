@@ -4,9 +4,9 @@ import adminApi from '@/api/admin'
 import type { LoginResult, UserInfo } from '@/api/admin'
 import type { MenuItem } from '@/types'
 
-const TOKEN_KEY = 'kk-mis-admin-token'
-const REFRESH_KEY = 'kk-mis-admin-refresh'
-const USER_KEY = 'kk-mis-admin-user'
+const TOKEN_KEY = 'kk-cms-admin-token'
+const REFRESH_KEY = 'kk-cms-admin-refresh'
+const USER_KEY = 'kk-cms-admin-user'
 
 export const useUserStore = defineStore('user', () => {
   const token = ref(localStorage.getItem(TOKEN_KEY) || '')

@@ -1,4 +1,4 @@
-# kk-mis · 企业 MIS 管理系统
+# kk-CMS · 企业 MIS 管理系统
 
 > 5 大模块一体化：会议纪要 / 企业管理(RBAC) / 财务统计 / 资产管理(卡券) / 代理销售(3级分销)
 
@@ -21,7 +21,7 @@
 | 层 | 选型 |
 |---|---|
 | 后端 | Python FastAPI + SQLAlchemy 2.0 async |
-| 数据库 | PostgreSQL（`kk_mis` 库，两服务共用）+ Redis |
+| 数据库 | PostgreSQL（`kk_cms` 库，两服务共用）+ Redis |
 | 前端 | Vue 3.5 + TypeScript + Element Plus + Vite（Teal 湖青，暗色+响应式+按需引入） |
 | ASR | Mac 本地 MLX Whisper（Belle-whisper-zh-punct） |
 | LLM | 智谱 GLM-4.7 / minimax / 本地 oMLX |
@@ -51,7 +51,7 @@ mis-system/
                      → /oa/admin/api/ → admin:8300（企业/财务/资产/代理，验 JWT）
                      → /oa/           → 前端 dist
 admin:8300 → Tailscale → Mac mlx-asr:9000（ASR）
-admin:8300 → PostgreSQL kk_mis + Redis
+admin:8300 → PostgreSQL kk_cms + Redis
 ```
 
 - **统一认证**：admin 签 JWT（admin/admin1234），会议纪要接入同一 JWT
@@ -93,7 +93,7 @@ systemctl restart kk-mis-admin kk-mis-meeting-notes
 
 # 前端
 cd apps/web && pnpm build
-# dist 上传到服务器 /var/www/kk-mis/web/
+# dist 上传到服务器 /var/www/kk-cms/web/
 
 # Mac ASR 节点
 cd services/mlx-asr && bash start.sh          # :9000

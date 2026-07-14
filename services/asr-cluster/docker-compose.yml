@@ -11,8 +11,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: kk-mis/asr-cluster:1.0.0
-    container_name: kk-mis-asr-cluster
+    image: kk-cms/asr-cluster:1.0.0
+    container_name: kk-cms-asr-cluster
     restart: unless-stopped
     ports:
       - "9100:9100"
@@ -21,7 +21,7 @@ services:
     environment:
       # 缺省值（可被 .env 覆盖）
       DEFAULT_ASR_NODE_URL: "http://100.88.88.34:9000"
-      MLX_ASR_API_KEY: "kk-mis-asr-local-dev-key-2026"
+      MLX_ASR_API_KEY: "kk-cms-asr-local-dev-key-2026"
       APP_HOST: "0.0.0.0"
       APP_PORT: "9100"
     healthcheck:

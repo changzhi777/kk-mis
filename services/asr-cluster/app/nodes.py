@@ -206,7 +206,7 @@ def get_registry() -> NodeRegistry:
         import os
 
         default_url = os.getenv("DEFAULT_ASR_NODE_URL", "http://100.88.88.34:9000")
-        default_key = os.getenv("MLX_ASR_API_KEY", "kk-mis-asr-local-dev-key-2026")
+        default_key = os.getenv("MLX_ASR_API_KEY", "kk-cms-asr-local-dev-key-2026")
         _registry.register(
             ASRNode(
                 id="mlx-mac-m5",

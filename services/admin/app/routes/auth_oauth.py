@@ -1,7 +1,7 @@
 """OAuth 第三方登录路由（authorize / callback）
 
 流程：前端跳 authorize → 后端 302 到 GitHub → 用户授权 → GitHub 回 callback
-→ 验 state → 换 token → 拿 userinfo → 查/建 kk-mis 账号 → 签 JWT → 302 前端#token
+→ 验 state → 换 token → 拿 userinfo → 查/建 kk-cms 账号 → 签 JWT → 302 前端#token
 """
 import secrets
 from datetime import datetime, timedelta, timezone

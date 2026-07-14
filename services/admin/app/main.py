@@ -1,4 +1,4 @@
-"""kk-mis 企业管理 + 财务 主应用"""
+"""kk-cms 企业管理 + 财务 主应用"""
 import logging
 import time
 from contextlib import asynccontextmanager
@@ -16,13 +16,13 @@ logging.basicConfig(
     level=settings.log_level,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
-logger = logging.getLogger("kk-mis-admin")
+logger = logging.getLogger("kk-cms-admin")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("=" * 60)
-    logger.info("kk-mis Admin 启动中...")
+    logger.info("kk-cms Admin 启动中...")
     logger.info(f"  - 监听: {settings.host}:{settings.port}")
     logger.info(f"  - 数据库: {settings.database_display}")
     logger.info(f"  - JWT: {settings.jwt_algorithm} access={settings.access_token_expire}s")
@@ -35,11 +35,11 @@ async def lifespan(app: FastAPI):
     yield
     await cache.close()
     await close_db()
-    logger.info("kk-mis Admin 关闭")
+    logger.info("kk-cms Admin 关闭")
 
 
 app = FastAPI(
-    title="kk-mis Admin API",
+    title="kk-cms Admin API",
     description="企业管理（RBAC）+ 财务统计",
     version="0.1.0",
     lifespan=lifespan,
@@ -115,4 +115,4 @@ async def health():
 
 @app.get("/")
 async def root():
-    return {"name": "kk-mis Admin", "version": "0.1.0", "docs": "/docs"}
+    return {"name": "kk-cms Admin", "version": "0.1.0", "docs": "/docs"}

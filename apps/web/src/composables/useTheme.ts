@@ -2,7 +2,7 @@ import { ref, watchEffect } from 'vue'
 
 type Theme = 'light' | 'dark'
 
-const STORAGE_KEY = 'kk-mis-theme'
+const STORAGE_KEY = 'kk-cms-theme'
 
 function getInitialTheme(): Theme {
   const saved = localStorage.getItem(STORAGE_KEY) as Theme | null
