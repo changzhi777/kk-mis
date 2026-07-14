@@ -160,15 +160,20 @@
         </el-form>
         <el-alert
           v-if="createdOrder"
-          :title="`订单 #${createdOrder.id} 已创建，实付 ¥${Number(createdOrder.total).toFixed(2)}`"
-          type="success"
+          :title="createdOrder.pay_status === 'paid' ? '支付成功' : `订单 #${createdOrder.id} 已创建，实付 ¥${Number(createdOrder.total).toFixed(2)}`"
+          :type="createdOrder.pay_status === 'paid' ? 'success' : 'info'"
           :closable="false"
           style="margin-bottom: 12px"
         />
+        <div v-if="createdOrder?.issued_card_no" class="issued-card">
+          <h3>🎉 支付成功，您的 VIP 卡</h3>
+          <div class="card-row"><span>卡号</span><strong>{{ createdOrder.issued_card_no }}</strong></div>
+          <div class="card-row"><span>密码</span><strong>{{ createdOrder.issued_card_password }}</strong></div>
+        </div>
         <template #footer>
-          <el-button @click="buyDialog = false">取消</el-button>
+          <el-button @click="buyDialog = false">关闭</el-button>
           <el-button v-if="!createdOrder" type="primary" :loading="creating" @click="createOrd">创建订单</el-button>
-          <el-button v-else type="primary" :loading="paying" @click="payOrd">模拟支付</el-button>
+          <el-button v-else-if="createdOrder.pay_status !== 'paid'" type="primary" :loading="paying" @click="payOrd">模拟支付</el-button>
         </template>
       </el-dialog>
     </template>
@@ -319,9 +324,8 @@ async function createOrd() {
 async function payOrd() {
   paying.value = true
   try {
-    await cmsApi.payOrder(createdOrder.value?.id as number)
+    createdOrder.value = await cmsApi.payOrder(createdOrder.value?.id as number)
     ElMessage.success('支付成功')
-    buyDialog.value = false
   } catch (e: unknown) {
     ElMessage.error(getApiError(e, '支付失败'))
   } finally {
@@ -396,6 +400,11 @@ onMounted(load)
 .row-line { display: flex; gap: 6px; align-items: center; }
 .disc { color: var(--el-color-danger); font-size: 13px; }
 .paid { font-weight: 600; color: var(--el-color-primary); }
+.issued-card { background: var(--el-color-success-light-9); border-radius: 8px; padding: 14px; margin-bottom: 12px; }
+.issued-card h3 { margin: 0 0 10px; font-size: 15px; color: var(--el-color-success); }
+.card-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px dashed var(--el-border-color-lighter); }
+.card-row span { color: var(--el-text-color-secondary); }
+.card-row strong { font-size: 16px; letter-spacing: 1px; }
 .review { padding: 10px 0; border-bottom: 1px dashed var(--el-border-color-lighter); }
 .r-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
 .r-name { font-weight: 600; color: var(--el-text-color-primary); }

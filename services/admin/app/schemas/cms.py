@@ -87,6 +87,7 @@ class TourProductCreate(BaseModel):
     theme: Optional[str] = None
     category: Optional[str] = None  # 分类：国内/海外/周边
     tags: List[str] = []
+    card_type_id: Optional[int] = None  # 关联 asset 卡券类型（pass 支付后发卡）
     cover_image: Optional[str] = None
     gallery: List[str] = []
     video_url: Optional[str] = None
@@ -109,6 +110,7 @@ class TourProductUpdate(BaseModel):
     theme: Optional[str] = None
     category: Optional[str] = None
     tags: Optional[List[str]] = None
+    card_type_id: Optional[int] = None
     cover_image: Optional[str] = None
     gallery: Optional[List[str]] = None
     video_url: Optional[str] = None
@@ -134,6 +136,7 @@ class TourProductOut(BaseModel):
     theme: Optional[str] = None
     category: Optional[str] = None
     tags: List[str] = []
+    card_type_id: Optional[int] = None
     cover_image: Optional[str] = None
     summary: Optional[str] = None
     highlights: List[str] = []
@@ -221,6 +224,9 @@ class ProductOrderOut(BaseModel):
     remark: Optional[str] = None
     pay_status: str
     paid_at: Optional[datetime] = None
+    transaction_id: Optional[str] = None
+    issued_card_no: Optional[str] = None
+    issued_card_password: Optional[str] = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

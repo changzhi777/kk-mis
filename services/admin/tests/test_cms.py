@@ -376,3 +376,31 @@ def test_related(client, auth_header):
     slugs = [i["slug"] for i in r.json()["items"]]
     assert "rel-2" in slugs
     assert "rel-1" not in slugs  # 排除自身
+
+
+# ===== 真发卡（订单支付→asset 自动发卡）=====
+def test_order_pay_issues_card(client, auth_header):
+    """支付后自动发卡（产品关联 card_type + 有 batch）"""
+    t = client.post(
+        "/admin/api/v1/asset/card-types",
+        json={"name": "VIP发卡", "type": "vip", "face_value": 1888},
+        headers=auth_header,
+    ).json()
+    client.post(
+        "/admin/api/v1/asset/batches",
+        json={"type_id": t["id"], "name": "CMS批", "quantity": 10},
+        headers=auth_header,
+    )
+    # 产品关联 card_type
+    p = _create_product(client, auth_header, slug="issue-1", ptype="pass", status="published")
+    client.put(f"/admin/api/v1/cms/products/{p['id']}", json={"card_type_id": t["id"]}, headers=auth_header)
+    # 下单 + 支付 → 自动发卡
+    o = client.post(
+        "/admin/api/v1/cms/orders",
+        json={"product_id": p["id"], "quantity": 1, "buyer_name": "买", "buyer_phone": "1"},
+    ).json()
+    r = client.post(f"/admin/api/v1/cms/orders/{o['id']}/pay").json()
+    assert r["pay_status"] == "paid"
+    assert r["issued_card_no"]  # 发了卡
+    assert r["issued_card_password"]
+    assert len(r["issued_card_no"]) == 16

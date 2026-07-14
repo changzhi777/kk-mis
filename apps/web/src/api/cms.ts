@@ -61,6 +61,7 @@ export interface TourProduct {
   status?: TourProductStatus
   sort?: number
   view_count?: number
+  card_type_id?: number
   seo_title?: string
   seo_description?: string
   published_at?: string
@@ -127,6 +128,9 @@ export interface ProductOrder {
   remark?: string
   pay_status?: OrderPayStatus
   paid_at?: string
+  transaction_id?: string
+  issued_card_no?: string
+  issued_card_password?: string
   created_at?: string
 }
 

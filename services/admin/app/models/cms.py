@@ -83,6 +83,7 @@ class TourProduct(Base):
     status = Column(String(20), default="draft", nullable=False, index=True)  # draft|published|archived
     sort = Column(Integer, default=0)
     view_count = Column(Integer, default=0)  # 浏览量（公开页访问 +1）
+    card_type_id = Column(BigInteger, ForeignKey("asset_card_type.id"), nullable=True)  # 关联 asset 卡券类型（pass 产品支付后自动发卡）
     seo_title = Column(String(200), nullable=True)
     seo_description = Column(String(500), nullable=True)
     published_at = Column(DateTime, nullable=True)
@@ -164,6 +165,9 @@ class ProductOrder(Base):
     remark = Column(Text, nullable=True)
     pay_status = Column(String(20), default="pending", nullable=False, index=True)  # pending|paid|cancelled
     paid_at = Column(DateTime, nullable=True)
+    issued_card_no = Column(String(32), nullable=True)  # 支付后发的卡号（明文一次性给买家）
+    issued_card_password = Column(String(10), nullable=True)  # 卡密码（明文一次性）
+    transaction_id = Column(String(100), nullable=True)  # 支付网关交易号
     created_at = Column(DateTime, default=utcnow)
 
 
