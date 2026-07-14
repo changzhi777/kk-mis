@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...db import get_session
 from ...deps import require_permission
-from ...models import FinanceCategory, FinanceTransaction
+from ...models import FinanceAccount, FinanceCategory, FinanceTransaction
 
 router = APIRouter(prefix="/api/v1/finance/reports", tags=["finance-report"])
 
@@ -72,3 +72,38 @@ async def by_category(
             for r in rows
         ]
     }
+
+
+@router.get("/by-account")
+async def by_account(
+    start_date: datetime = Query(None),
+    end_date: datetime = Query(None),
+    session: AsyncSession = Depends(get_session),
+    _=Depends(require_permission("finance:report:view")),
+):
+    """按账户聚合：各账户收入/支出/结余"""
+    stmt = (
+        select(
+            FinanceAccount.id,
+            FinanceAccount.name,
+            FinanceTransaction.type,
+            func.sum(FinanceTransaction.amount),
+        )
+        .join(FinanceAccount, FinanceAccount.id == FinanceTransaction.account_id)
+    )
+    if start_date:
+        stmt = stmt.where(FinanceTransaction.transaction_date >= start_date)
+    if end_date:
+        stmt = stmt.where(FinanceTransaction.transaction_date <= end_date)
+    stmt = stmt.group_by(FinanceAccount.id, FinanceTransaction.type)
+    rows = (await session.execute(stmt)).all()
+    accs: dict[int, dict] = {}
+    for aid, name, t, amt in rows:
+        if aid not in accs:
+            accs[aid] = {"account_id": aid, "account": name, "income": 0.0, "expense": 0.0}
+        if t == "income":
+            accs[aid]["income"] += float(amt or 0)
+        else:
+            accs[aid]["expense"] += float(amt or 0)
+    items = [{"balance": a["income"] - a["expense"], **a} for a in accs.values()]
+    return {"items": items}

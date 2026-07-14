@@ -131,6 +131,45 @@ async def export_transactions(
     )
 
 
+@router.put("/{tid}", response_model=TransactionOut)
+async def update_transaction(
+    tid: int,
+    req: TransactionCreate,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(require_permission("finance:transaction:save")),
+):
+    """更新流水：反向旧余额 → 应用新余额（支持改账户/科目/金额/类型）"""
+    tx = await session.get(FinanceTransaction, tid)
+    if not tx:
+        raise HTTPException(404, "流水不存在")
+    acc = await session.get(FinanceAccount, req.account_id)
+    if not acc:
+        raise HTTPException(400, "账户不存在")
+    cat = await session.get(FinanceCategory, req.category_id)
+    if not cat:
+        raise HTTPException(400, "科目不存在")
+    if cat.type != req.type:
+        raise HTTPException(400, f"科目类型({cat.type})与流水类型({req.type})不符")
+    # 反向旧余额（旧账户，可能和新账户不同）
+    old_acc = await session.get(FinanceAccount, tx.account_id)
+    if old_acc:
+        old_delta = -tx.amount if tx.type == "income" else tx.amount
+        old_acc.balance = (old_acc.balance or Decimal("0")) + old_delta
+    # 应用新余额
+    new_delta = req.amount if req.type == "income" else -req.amount
+    acc.balance = (acc.balance or Decimal("0")) + new_delta
+    tx.type = req.type
+    tx.amount = req.amount
+    tx.account_id = req.account_id
+    tx.category_id = req.category_id
+    tx.dept_id = req.dept_id
+    tx.transaction_date = req.transaction_date
+    tx.remark = req.remark
+    await session.commit()
+    await session.refresh(tx)
+    return TransactionOut.model_validate(tx)
+
+
 @router.delete("/{tid}")
 async def delete_transaction(
     tid: int,

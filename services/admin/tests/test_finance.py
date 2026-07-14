@@ -151,3 +151,81 @@ def test_finance_export_csv(client, auth_header):
     # 内容至少含表头
     body = r.content.decode("utf-8-sig")
     assert "amount" in body or "金额" in body  # 列名中英至少一种
+
+
+def test_update_transaction_reverses_and_applies_balance(client, auth_header):
+    """PUT 更新流水：反向旧余额 → 应用新余额（改金额/类型时余额正确联动）。"""
+    h = auth_header
+    acc = client.post(
+        "/admin/api/v1/finance/accounts",
+        json={"name": "PUT测试账户", "type": "cash", "balance": 0},
+        headers=h,
+    ).json()
+    cat_in = client.post(
+        "/admin/api/v1/finance/categories",
+        json={"name": "PUT收入", "type": "income"},
+        headers=h,
+    ).json()
+    cat_out = client.post(
+        "/admin/api/v1/finance/categories",
+        json={"name": "PUT支出", "type": "expense"},
+        headers=h,
+    ).json()
+    # 建收入 500 → 余额 500
+    tx = client.post(
+        "/admin/api/v1/finance/transactions",
+        json={"account_id": acc["id"], "category_id": cat_in["id"],
+              "type": "income", "amount": 500, "transaction_date": "2026-07-12"},
+        headers=h,
+    ).json()
+    assert float(_list_account_by_id(client, h, acc["id"])["balance"]) == 500.0
+
+    # PUT 改成支出 200 → 反向旧(+500→0) + 应用新(-200) → 余额 -200
+    r = client.put(
+        f"/admin/api/v1/finance/transactions/{tx['id']}",
+        json={"account_id": acc["id"], "category_id": cat_out["id"],
+              "type": "expense", "amount": 200, "transaction_date": "2026-07-12"},
+        headers=h,
+    )
+    assert r.status_code == 200
+    assert float(_list_account_by_id(client, h, acc["id"])["balance"]) == -200.0
+
+
+def test_report_by_account(client, auth_header):
+    """by-account 按账户聚合收入/支出/结余。"""
+    h = auth_header
+    acc = client.post(
+        "/admin/api/v1/finance/accounts",
+        json={"name": "by-account测试", "type": "bank", "balance": 0},
+        headers=h,
+    ).json()
+    cat_in = client.post(
+        "/admin/api/v1/finance/categories",
+        json={"name": "byAcc收入", "type": "income"},
+        headers=h,
+    ).json()
+    cat_out = client.post(
+        "/admin/api/v1/finance/categories",
+        json={"name": "byAcc支出", "type": "expense"},
+        headers=h,
+    ).json()
+    client.post(
+        "/admin/api/v1/finance/transactions",
+        json={"account_id": acc["id"], "category_id": cat_in["id"],
+              "type": "income", "amount": 800, "transaction_date": "2026-07-12"},
+        headers=h,
+    )
+    client.post(
+        "/admin/api/v1/finance/transactions",
+        json={"account_id": acc["id"], "category_id": cat_out["id"],
+              "type": "expense", "amount": 300, "transaction_date": "2026-07-12"},
+        headers=h,
+    )
+    r = client.get("/admin/api/v1/finance/reports/by-account", headers=h)
+    assert r.status_code == 200
+    items = r.json()["items"]
+    target = next((a for a in items if a["account_id"] == acc["id"]), None)
+    assert target is not None
+    assert target["income"] >= 800.0
+    assert target["expense"] >= 300.0
+    assert target["balance"] == target["income"] - target["expense"]
