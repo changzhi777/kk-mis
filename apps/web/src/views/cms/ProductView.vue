@@ -99,6 +99,21 @@
         </section>
       </div>
 
+      <!-- 相关产品 -->
+      <div v-if="related.length" class="container">
+        <section class="block">
+          <h2>相关产品</h2>
+          <div class="related-grid">
+            <div v-for="r in related" :key="r.id" class="related-card" @click="goRelated(r.slug)">
+              <img v-if="r.cover_image" :src="r.cover_image" class="rc-cover" />
+              <div v-else class="rc-cover rc-ph">🏔</div>
+              <div class="rc-title">{{ r.title }}</div>
+              <div class="rc-meta">{{ r.destination || r.category || '' }}</div>
+            </div>
+          </div>
+        </section>
+      </div>
+
       <!-- CTA 浮动栏 -->
       <div class="cta-bar">
         <span class="cta-type">{{ p.type === 'custom' ? '高端订制游' : '旅游权益卡' }}</span>
@@ -161,7 +176,7 @@
 </template>
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import DOMPurify from 'dompurify'
 import cmsApi from '@/api/cms'
@@ -169,7 +184,9 @@ import { getApiError } from '@/api/admin'
 import type { InquiryLead, ProductOrder, TourProduct } from '@/api/cms'
 
 const route = useRoute()
+const router = useRouter()
 const p = ref<TourProduct | null>(null)
+const related = ref<TourProduct[]>([])
 const loading = ref(false)
 const notFound = ref(false)
 
@@ -207,11 +224,20 @@ async function load() {
   loading.value = true
   try {
     p.value = await cmsApi.getPublicProduct(route.params.slug as string)
+    try {
+      related.value = await cmsApi.getRelated(route.params.slug as string)
+    } catch {
+      related.value = []
+    }
   } catch {
     notFound.value = true
   } finally {
     loading.value = false
   }
+}
+
+function goRelated(slug: string) {
+  router.push(`/product/${slug}`)
 }
 
 function consult() {
@@ -376,4 +402,11 @@ onMounted(load)
 .stars { color: #f7ba2a; }
 .r-content { margin: 0; color: var(--el-text-color-regular); font-size: 14px; line-height: 1.6; }
 .review-form h3 { font-size: 15px; margin: 0 0 12px; color: var(--el-text-color-primary); }
+.related-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+.related-card { cursor: pointer; border-radius: 8px; overflow: hidden; background: var(--el-fill-color-light); }
+.related-card:hover { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); }
+.rc-cover { width: 100%; height: 100px; object-fit: cover; display: block; }
+.rc-ph { display: flex; align-items: center; justify-content: center; font-size: 28px; background: var(--el-color-primary-light-9); color: var(--el-text-color-secondary); }
+.rc-title { padding: 6px 8px 2px; font-size: 13px; font-weight: 600; color: var(--el-text-color-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rc-meta { padding: 0 8px 8px; font-size: 11px; color: var(--el-text-color-secondary); }
 </style>

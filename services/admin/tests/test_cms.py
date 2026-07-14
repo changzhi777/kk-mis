@@ -353,3 +353,26 @@ def test_dashboard(client, auth_header):
     assert "leads_total" in data
     assert "orders_paid" in data
     assert "revenue" in data
+
+
+# ===== 搜索 + 相关推荐 =====
+def test_search(client, auth_header):
+    """公开搜索（按 destination）"""
+    p = _create_product(client, auth_header, slug="s-1", status="published")
+    client.put(f"/admin/api/v1/cms/products/{p['id']}", json={"destination": "三亚湾"}, headers=auth_header)
+    r = client.get("/admin/api/v1/cms/products/search/results", params={"q": "三亚"})
+    assert r.status_code == 200
+    assert any(i["slug"] == "s-1" for i in r.json()["items"])
+
+
+def test_related(client, auth_header):
+    """相关推荐（同 category，排除自身）"""
+    p1 = _create_product(client, auth_header, slug="rel-1", status="published")
+    client.put(f"/admin/api/v1/cms/products/{p1['id']}", json={"category": "海外"}, headers=auth_header)
+    p2 = _create_product(client, auth_header, slug="rel-2", status="published")
+    client.put(f"/admin/api/v1/cms/products/{p2['id']}", json={"category": "海外"}, headers=auth_header)
+    r = client.get("/admin/api/v1/cms/products/related/rel-1")
+    assert r.status_code == 200
+    slugs = [i["slug"] for i in r.json()["items"]]
+    assert "rel-2" in slugs
+    assert "rel-1" not in slugs  # 排除自身

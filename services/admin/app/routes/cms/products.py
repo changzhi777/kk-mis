@@ -97,6 +97,54 @@ async def get_product_by_slug(
     return detail
 
 
+@router.get("/search/results")
+async def search_products(
+    q: str,
+    session: AsyncSession = Depends(get_session),
+):
+    """公开搜索（无需登录，仅 published，匹配 title/summary/destination/category/theme）"""
+    kw = f"%{q}%"
+    items = (
+        await session.execute(
+            select(TourProduct)
+            .where(
+                TourProduct.status == "published",
+                TourProduct.title.ilike(kw)
+                | TourProduct.summary.ilike(kw)
+                | TourProduct.destination.ilike(kw)
+                | TourProduct.category.ilike(kw)
+                | TourProduct.theme.ilike(kw),
+            )
+            .order_by(TourProduct.view_count.desc(), TourProduct.id.desc())
+            .limit(20)
+        )
+    ).scalars().all()
+    return {"items": [TourProductOut.model_validate(p).model_dump() for p in items], "q": q}
+
+
+@router.get("/related/{slug}")
+async def related_products(
+    slug: str,
+    session: AsyncSession = Depends(get_session),
+):
+    """相关推荐（同 category 优先，排除自身，仅 published，limit 4）"""
+    p = (
+        await session.execute(select(TourProduct).where(TourProduct.slug == slug))
+    ).scalar_one_or_none()
+    if not p:
+        return {"items": []}
+    q = select(TourProduct).where(
+        TourProduct.status == "published",
+        TourProduct.id != p.id,
+    )
+    if p.category:
+        q = q.where(TourProduct.category == p.category)
+    items = (
+        await session.execute(q.order_by(TourProduct.view_count.desc()).limit(4))
+    ).scalars().all()
+    return {"items": [TourProductOut.model_validate(x).model_dump() for x in items]}
+
+
 @router.get("/detail/{product_id}")
 async def get_product_detail(
     product_id: int,

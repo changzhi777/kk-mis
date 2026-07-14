@@ -39,6 +39,13 @@ const router = createRouter({
       component: () => import('@/views/cms/ProductView.vue'),
       meta: { public: true, title: '产品详情' },
     },
+    // 公开搜索（CMS，2026-07-14）
+    {
+      path: '/search',
+      name: 'cms-search',
+      component: () => import('@/views/cms/Search.vue'),
+      meta: { public: true, title: '搜索产品' },
+    },
     {
       path: '/',
       name: 'home',

@@ -301,6 +301,18 @@ export const cmsApi = {
   getDashboard() {
     return http.get('/api/v1/cms/stats/dashboard').then((r) => r.data as DashboardStats)
   },
+
+  // 搜索 + 相关推荐
+  searchProducts(q: string) {
+    return http
+      .get('/api/v1/cms/products/search/results', { params: { q } })
+      .then((r) => r.data.items as TourProduct[])
+  },
+  getRelated(slug: string) {
+    return http
+      .get(`/api/v1/cms/products/related/${encodeURIComponent(slug)}`)
+      .then((r) => r.data.items as TourProduct[])
+  },
 }
 
 export default cmsApi
