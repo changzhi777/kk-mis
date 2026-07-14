@@ -139,6 +139,7 @@ class TourProductOut(BaseModel):
     highlights: List[str] = []
     status: str
     sort: int
+    view_count: int = 0
     published_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
@@ -266,3 +267,40 @@ class CouponValidateResponse(BaseModel):
     valid: bool
     discount: Decimal = Decimal("0")
     reason: Optional[str] = None
+
+
+# ===== 评论/评价 =====
+class ReviewCreate(BaseModel):
+    product_id: int
+    author_name: str = Field(..., max_length=50)
+    rating: int = Field(..., ge=1, le=5)
+    content: str = Field(..., min_length=1, max_length=1000)
+
+
+class ReviewOut(BaseModel):
+    id: int
+    product_id: int
+    author_name: str
+    rating: int
+    content: str
+    status: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ReviewStatusUpdate(BaseModel):
+    status: str = Field(..., pattern="^(pending|approved|rejected)$")
+
+
+# ===== 看板统计 =====
+class DashboardStats(BaseModel):
+    products_total: int
+    products_published: int
+    views_total: int
+    top_products: List[Any]
+    leads_total: int
+    leads_new: int
+    orders_total: int
+    orders_paid: int
+    revenue: Decimal

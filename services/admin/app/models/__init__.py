@@ -15,6 +15,7 @@ from .cms import (
     MediaAsset,
     Merchant,
     ProductOrder,
+    Review,
     TourCustom,
     TourPass,
     TourProduct,
@@ -84,4 +85,5 @@ __all__ = [
     "InquiryLead",
     "ProductOrder",
     "Coupon",
+    "Review",
 ]

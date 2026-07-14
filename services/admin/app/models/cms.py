@@ -82,6 +82,7 @@ class TourProduct(Base):
     highlights = Column(JSON, default=list)  # 亮点列表 ["", ""]
     status = Column(String(20), default="draft", nullable=False, index=True)  # draft|published|archived
     sort = Column(Integer, default=0)
+    view_count = Column(Integer, default=0)  # 浏览量（公开页访问 +1）
     seo_title = Column(String(200), nullable=True)
     seo_description = Column(String(500), nullable=True)
     published_at = Column(DateTime, nullable=True)
@@ -182,4 +183,21 @@ class Coupon(Base):
     valid_from = Column(DateTime, nullable=True)
     valid_until = Column(DateTime, nullable=True)
     status = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=utcnow)
+
+
+class Review(Base):
+    """产品评论/评价（公开提交，admin 审核）
+
+    状态：pending（待审）→ approved（通过，公开页展示）/ rejected（拒绝）
+    """
+
+    __tablename__ = "cms_review"
+
+    id = pk()
+    product_id = Column(BigInteger, ForeignKey("cms_tour_product.id"), nullable=False, index=True)
+    author_name = Column(String(50), nullable=False)
+    rating = Column(Integer, nullable=False)  # 1-5 星
+    content = Column(Text, nullable=False)
+    status = Column(String(20), default="pending", nullable=False, index=True)  # pending|approved|rejected
     created_at = Column(DateTime, default=utcnow)

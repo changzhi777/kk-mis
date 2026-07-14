@@ -105,6 +105,10 @@ _DEFAULT_MENUS = [
     ("cms:coupon", "优惠券", "menu", "/cms/coupon", "Discount", "cms", 60),
     ("cms:coupon:list", "券查询", "api", "/api/v1/cms/coupons", None, "cms:coupon", 1),
     ("cms:coupon:save", "券保存", "api", "/api/v1/cms/coupons", None, "cms:coupon", 2),
+    ("cms:dashboard", "数据看板", "menu", "/cms/dashboard", "DataAnalysis", "cms", 5),
+    ("cms:review", "评论管理", "menu", "/cms/review", "ChatLineSquare", "cms", 70),
+    ("cms:review:list", "评论查询", "api", "/api/v1/cms/reviews", None, "cms:review", 1),
+    ("cms:review:save", "评论审核", "api", "/api/v1/cms/reviews", None, "cms:review", 2),
 ]
 
 _DEFAULT_CATEGORIES = [

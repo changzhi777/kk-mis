@@ -60,6 +60,7 @@ export interface TourProduct {
   highlights?: string[]
   status?: TourProductStatus
   sort?: number
+  view_count?: number
   seo_title?: string
   seo_description?: string
   published_at?: string
@@ -67,6 +68,7 @@ export interface TourProduct {
   updated_at?: string
   custom?: TourCustom
   pass_config?: TourPass
+  reviews?: Review[]
 }
 
 export interface MediaAsset {
@@ -149,6 +151,30 @@ export interface CouponValidateResult {
   valid: boolean
   discount: number | string
   reason?: string
+}
+
+export type ReviewStatus = 'pending' | 'approved' | 'rejected'
+
+export interface Review {
+  id?: number
+  product_id: number
+  author_name: string
+  rating: number
+  content: string
+  status?: ReviewStatus
+  created_at?: string
+}
+
+export interface DashboardStats {
+  products_total: number
+  products_published: number
+  views_total: number
+  top_products: { title: string; slug: string; view_count: number }[]
+  leads_total: number
+  leads_new: number
+  orders_total: number
+  orders_paid: number
+  revenue: number | string
 }
 
 // ===== API =====
@@ -255,6 +281,25 @@ export const cmsApi = {
   },
   deleteCoupon(id: number) {
     return http.delete(`/api/v1/cms/coupons/${id}`).then((r) => r.data)
+  },
+
+  // 评论/评价
+  submitReview(data: { product_id: number; author_name: string; rating: number; content: string }) {
+    return http.post('/api/v1/cms/reviews', data).then((r) => r.data as Review)
+  },
+  listReviews(params?: { status?: ReviewStatus }) {
+    return http.get('/api/v1/cms/reviews', { params }).then((r) => r.data.items as Review[])
+  },
+  updateReviewStatus(id: number, status: ReviewStatus) {
+    return http.put(`/api/v1/cms/reviews/${id}/status`, { status }).then((r) => r.data as Review)
+  },
+  deleteReview(id: number) {
+    return http.delete(`/api/v1/cms/reviews/${id}`).then((r) => r.data)
+  },
+
+  // 数据看板
+  getDashboard() {
+    return http.get('/api/v1/cms/stats/dashboard').then((r) => r.data as DashboardStats)
   },
 }
 

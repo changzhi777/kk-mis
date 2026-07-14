@@ -9,8 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...db import get_session
 from ...deps import require_permission
-from ...models import TourCustom, TourPass, TourProduct
+from ...models import Review, TourCustom, TourPass, TourProduct
 from ...schemas.cms import (
+    ReviewOut,
     TourCustomSchema,
     TourProductCreate,
     TourProductDetail,
@@ -79,7 +80,21 @@ async def get_product_by_slug(
     ).scalar_one_or_none()
     if not p or p.status != "published":
         raise HTTPException(404, "产品不存在或未发布")
-    return (await _load_detail(session, p)).model_dump()
+    # 浏览埋点 +1
+    p.view_count = (p.view_count or 0) + 1
+    await session.commit()
+    detail = (await _load_detail(session, p)).model_dump()
+    # 附加已审核通过的评论
+    reviews = (
+        await session.execute(
+            select(Review)
+            .where(Review.product_id == p.id, Review.status == "approved")
+            .order_by(Review.id.desc())
+            .limit(20)
+        )
+    ).scalars().all()
+    detail["reviews"] = [ReviewOut.model_validate(r).model_dump() for r in reviews]
+    return detail
 
 
 @router.get("/detail/{product_id}")

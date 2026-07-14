@@ -74,6 +74,29 @@
           <h2>图集</h2>
           <div class="gallery"><img v-for="(g, i) in p.gallery" :key="i" :src="g" loading="lazy" class="gallery-img" /></div>
         </section>
+
+        <!-- 用户评价 -->
+        <section class="block">
+          <h2>用户评价</h2>
+          <div v-for="r in (p.reviews || [])" :key="r.id" class="review">
+            <div class="r-head">
+              <span class="r-name">{{ r.author_name }}</span>
+              <span class="stars">{{ '★'.repeat(r.rating) }}{{ '☆'.repeat(5 - r.rating) }}</span>
+            </div>
+            <p class="r-content">{{ r.content }}</p>
+          </div>
+          <el-empty v-if="!(p.reviews || []).length" description="暂无评价，快来抢沙发" :image-size="60" />
+          <el-divider />
+          <div class="review-form">
+            <h3>写评价</h3>
+            <el-form :model="reviewForm" label-width="60px">
+              <el-form-item label="昵称"><el-input v-model="reviewForm.author_name" style="width: 200px" /></el-form-item>
+              <el-form-item label="评分"><el-rate v-model="reviewForm.rating" /></el-form-item>
+              <el-form-item label="内容"><el-input v-model="reviewForm.content" type="textarea" :rows="2" /></el-form-item>
+              <el-button type="primary" :loading="reviewing" @click="submitReviewForm">提交评价（审核后展示）</el-button>
+            </el-form>
+          </div>
+        </section>
       </div>
 
       <!-- CTA 浮动栏 -->
@@ -280,6 +303,26 @@ async function payOrd() {
   }
 }
 
+// 评论
+const reviewing = ref(false)
+const reviewForm = reactive({ author_name: '', rating: 5, content: '' })
+async function submitReviewForm() {
+  if (!reviewForm.author_name || !reviewForm.content) {
+    ElMessage.warning('请填写昵称和评价')
+    return
+  }
+  reviewing.value = true
+  try {
+    await cmsApi.submitReview({ product_id: p.value?.id as number, ...reviewForm })
+    ElMessage.success('评价已提交，审核后展示')
+    reviewForm.content = ''
+  } catch (e: unknown) {
+    ElMessage.error(getApiError(e, '提交失败'))
+  } finally {
+    reviewing.value = false
+  }
+}
+
 onMounted(load)
 </script>
 <style scoped>
@@ -327,4 +370,10 @@ onMounted(load)
 .row-line { display: flex; gap: 6px; align-items: center; }
 .disc { color: var(--el-color-danger); font-size: 13px; }
 .paid { font-weight: 600; color: var(--el-color-primary); }
+.review { padding: 10px 0; border-bottom: 1px dashed var(--el-border-color-lighter); }
+.r-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.r-name { font-weight: 600; color: var(--el-text-color-primary); }
+.stars { color: #f7ba2a; }
+.r-content { margin: 0; color: var(--el-text-color-regular); font-size: 14px; line-height: 1.6; }
+.review-form h3 { font-size: 15px; margin: 0 0 12px; color: var(--el-text-color-primary); }
 </style>

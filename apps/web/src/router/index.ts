@@ -220,6 +220,12 @@ const router = createRouter({
       meta: { title: '旅游产品', group: 'cms', permission: 'cms:product:list' },
     },
     {
+      path: '/cms/dashboard',
+      name: 'cms-dashboard',
+      component: () => import('@/views/cms/Dashboard.vue'),
+      meta: { title: '数据看板', group: 'cms', permission: 'cms:product:list' },
+    },
+    {
       path: '/cms/product/:id',
       name: 'cms-product-edit',
       component: () => import('@/views/cms/ProductEdit.vue'),
@@ -254,6 +260,12 @@ const router = createRouter({
       name: 'cms-coupon',
       component: () => import('@/views/cms/CouponList.vue'),
       meta: { title: '优惠券', group: 'cms', permission: 'cms:coupon:list' },
+    },
+    {
+      path: '/cms/review',
+      name: 'cms-review',
+      component: () => import('@/views/cms/ReviewList.vue'),
+      meta: { title: '评论管理', group: 'cms', permission: 'cms:review:list' },
     },
   ],
 })

@@ -289,3 +289,67 @@ def test_coupon_crud(client, auth_header):
     assert c["id"]
     assert client.put(f"/admin/api/v1/cms/coupons/{c['id']}", json={"name": "新"}, headers=auth_header).json()["name"] == "新"
     assert client.delete(f"/admin/api/v1/cms/coupons/{c['id']}", headers=auth_header).status_code == 200
+
+
+# ===== 浏览埋点 + 评论 + 看板 =====
+def test_view_count(client, auth_header):
+    """公开页访问 → view_count +1"""
+    _create_product(client, auth_header, slug="view-1", ptype="custom", status="published")
+    client.get("/admin/api/v1/cms/products/view-1")
+    client.get("/admin/api/v1/cms/products/view-1")
+    r = client.get("/admin/api/v1/cms/products", params={"type": "custom"}, headers=auth_header)
+    item = next(i for i in r.json()["items"] if i["slug"] == "view-1")
+    assert item["view_count"] >= 2
+
+
+def test_review_submit(client, auth_header):
+    """公开提交评论 → pending"""
+    p = _create_product(client, auth_header, slug="rev-1", status="published")
+    r = client.post(
+        "/admin/api/v1/cms/reviews",
+        json={"product_id": p["id"], "author_name": "用户", "rating": 5, "content": "很棒"},
+    )
+    assert r.status_code == 200
+    assert r.json()["status"] == "pending"
+
+
+def test_review_moderate(client, auth_header):
+    """admin 审核 pending→approved"""
+    p = _create_product(client, auth_header, slug="rev-2", status="published")
+    rev = client.post(
+        "/admin/api/v1/cms/reviews",
+        json={"product_id": p["id"], "author_name": "u", "rating": 4, "content": "好"},
+    ).json()
+    r = client.put(
+        f"/admin/api/v1/cms/reviews/{rev['id']}/status", json={"status": "approved"}, headers=auth_header
+    )
+    assert r.status_code == 200
+    assert r.json()["status"] == "approved"
+
+
+def test_review_only_approved_in_public(client, auth_header):
+    """公开页只显示 approved 评论"""
+    p = _create_product(client, auth_header, slug="rev-3", status="published")
+    r1 = client.post(
+        "/admin/api/v1/cms/reviews",
+        json={"product_id": p["id"], "author_name": "a", "rating": 5, "content": "approved-one"},
+    ).json()
+    client.put(f"/admin/api/v1/cms/reviews/{r1['id']}/status", json={"status": "approved"}, headers=auth_header)
+    client.post(
+        "/admin/api/v1/cms/reviews",
+        json={"product_id": p["id"], "author_name": "b", "rating": 3, "content": "pending-one"},
+    )
+    pub = client.get("/admin/api/v1/cms/products/rev-3").json()
+    assert len(pub["reviews"]) == 1
+    assert pub["reviews"][0]["content"] == "approved-one"
+
+
+def test_dashboard(client, auth_header):
+    """admin 看板统计聚合"""
+    r = client.get("/admin/api/v1/cms/stats/dashboard", headers=auth_header)
+    assert r.status_code == 200
+    data = r.json()
+    assert "products_total" in data
+    assert "leads_total" in data
+    assert "orders_paid" in data
+    assert "revenue" in data
