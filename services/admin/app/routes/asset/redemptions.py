@@ -50,6 +50,9 @@ async def _redeem_one(card_no: str, method: str, password, remark, user: User, s
         if pts > 0:
             await award_points(card.holder_user_id, pts, "redeem", session, ref_type="card", ref_id=card.id)
             await add_consumed(card.holder_user_id, card.face_value, session)
+            # V3 等级自动升级（累计消费达门槛）
+            from ...services.member_level import check_and_upgrade_level
+            await check_and_upgrade_level(session, card.holder_user_id)
     return {"card_no": card_no, "ok": True, "amount": float(card.face_value), "card_id": card.id}
 
 
