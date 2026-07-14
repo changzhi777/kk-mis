@@ -13,9 +13,11 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ...config import settings
 from ...db import get_session
 from ...deps import require_permission
 from ...models import MediaAsset
@@ -159,3 +161,52 @@ async def delete_media(
     await session.delete(a)
     await session.commit()
     return {"success": True}
+
+
+class ConfirmRequest(BaseModel):
+    """前端直传 COS 后落账请求（Phase 2）。"""
+    key: str
+    name: str
+    content_type: str = "application/octet-stream"
+    size: int = 0
+
+
+@router.post("/confirm", response_model=MediaAssetOut)
+async def confirm_direct_upload(
+    body: ConfirmRequest,
+    session: AsyncSession = Depends(get_session),
+    user=Depends(require_permission("cms:media:upload")),
+):
+    """前端直传 COS 后落账：head 校验对象存在 → 建 MediaAsset。
+
+    与 /upload 中转互补：前端 presign → PUT COS → confirm 三步直传，省后端带宽。
+    """
+    key = ObjectKey(body.key)
+    storage = get_storage()
+    meta = await storage.head(key)
+    if meta is None:
+        raise HTTPException(404, "对象不存在于存储后端，请先直传")
+    # url：cos 源站（public-read 桶可直访）；local fallback file 路由
+    if hasattr(storage, "_build_url"):
+        url = await storage._build_url(key)
+    else:
+        url = f"/admin/api/v1/cms/media/file/{body.key}"
+    suffix = Path(body.name).suffix.lower()
+    media_type = next(
+        (m for m, exts in ALLOWED_EXTS.items() if suffix in exts), "image"
+    )
+    asset = MediaAsset(
+        name=body.name,
+        type=media_type,
+        url=url,
+        size=meta.size or body.size,
+        uploaded_by=user.id,
+        storage_backend=settings.storage_backend or "local",
+        storage_key=key.value,
+        etag=meta.etag,
+        content_type=meta.content_type or body.content_type,
+    )
+    session.add(asset)
+    await session.commit()
+    await session.refresh(asset)
+    return MediaAssetOut.model_validate(asset)

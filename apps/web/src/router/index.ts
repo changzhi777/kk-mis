@@ -274,6 +274,20 @@ const router = createRouter({
       component: () => import('@/views/cms/ReviewList.vue'),
       meta: { title: '评论管理', group: 'cms', permission: 'cms:review:list' },
     },
+    // 办公协同 · Office 中心（oa-agent 文档处理桥，2026-07-14 Sprint 1 officecli 骨架）
+    {
+      path: '/office',
+      name: 'office',
+      component: () => import('@/views/office/OfficeCenter.vue'),
+      meta: { title: '办公中心', group: 'office' },
+    },
+    // 🧪 办公协同 S2 可行性 Spike（Univer Sheets，2026-07-14）；验证通过后保留为 OfficeCenter 起点
+    {
+      path: '/office/sheet-spike',
+      name: 'office-sheet-spike',
+      component: () => import('@/views/office/SheetSpike.vue'),
+      meta: { title: '表格 Spike', group: 'office' },
+    },
   ],
 })
 

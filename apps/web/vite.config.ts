@@ -1,9 +1,26 @@
-import { defineConfig } from 'vite'
+import { defineConfig, type ViteDevServer } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { fileURLToPath, URL } from 'node:url'
 import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
+
+// dev 修复：base='/oa/' 使前端 baseURL（/oa/admin 等）请求 path 含 /oa 前缀，
+// 而 server.proxy key '/admin' 匹配 raw path → 不匹配 → 404。
+// 此中间件在 proxy 之前注入（configureServer 不返回函数 = 前置），把 /oa 前缀去掉让原 proxy 匹配。
+// prod 走 nginx（/oa/admin/ → :8300/admin/）不受影响。
+const devStripOaPrefix = {
+  name: 'dev-strip-oa-prefix',
+  apply: 'serve' as const,
+  configureServer(server: ViteDevServer) {
+    server.middlewares.use((req, _res, next) => {
+      if (req.url && /^\/oa\/(admin|api|llm)(\/|$)/.test(req.url)) {
+        req.url = req.url.replace(/^\/oa/, '')
+      }
+      next()
+    })
+  },
+}
 
 export default defineConfig({
   base: '/oa/',
@@ -20,6 +37,7 @@ export default defineConfig({
       resolvers: [ElementPlusResolver({ importStyle: 'sass' })],
       dts: 'src/types/components.d.ts',
     }),
+    devStripOaPrefix,
   ],
   resolve: {
     alias: {
@@ -41,8 +59,7 @@ export default defineConfig({
       // meeting-notes（音频上传 / ASR / LLM）
       '/api': { target: 'http://localhost:8000', changeOrigin: true },
       '/llm': { target: 'http://localhost:8000', changeOrigin: true },
-      // admin（企业/财务/资产/代理/OA，含 oa-agent bridge → :9001）
-      // dev 时需要同时启动 admin :8300（已含 oa_agent_bridge 转发到 :9001）
+      // admin（企业/财务/资产/代理/OA/CMS/office 桥，含 oa_agent_bridge 转发 :9001）
       '/admin': { target: 'http://localhost:8300', changeOrigin: true },
     },
   },

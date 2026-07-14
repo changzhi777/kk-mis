@@ -10,8 +10,10 @@ from .oa import oa_routers
 from .departments import router as departments_router
 from .finance import finance_routers
 from .oa_agent_bridge import router as oa_agent_bridge_router
+from .office import router as office_router
 from .permissions import router as permissions_router
 from .roles import router as roles_router
+from .storage import router as storage_router
 from .users import router as users_router
 
 # 所有路由聚合，main 循环注册
@@ -31,6 +33,8 @@ all_routers = [
     *oa_routers,
     member_router,
     oa_agent_bridge_router,
+    office_router,
+    storage_router,
 ]
 
 __all__ = ["all_routers"]

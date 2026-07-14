@@ -252,7 +252,8 @@ export const cmsApi = {
   },
 
   // 素材
-  uploadMedia(file: File, onProgress?: (e: AxiosProgressEvent) => void) {
+  /** 中转上传（local backend / 直传 fallback）*/
+  uploadMediaViaAdmin(file: File, onProgress?: (e: AxiosProgressEvent) => void) {
     const fd = new FormData()
     fd.append('file', file)
     return http
@@ -261,6 +262,56 @@ export const cmsApi = {
         onUploadProgress: onProgress,
       })
       .then((r) => r.data as MediaAsset)
+  },
+
+  /** 申请前端直传 presigned PUT URL（Phase 2，仅 cos backend）*/
+  presignMedia(file: File) {
+    return http
+      .post('/api/v1/storage/presign', {
+        filename: file.name,
+        content_type: file.type || 'application/octet-stream',
+        size: file.size,
+      })
+      .then(
+        (r) =>
+          r.data as {
+            url: string
+            key: string
+            required_headers: Record<string, string>
+          },
+      )
+  },
+
+  /** 前端直传后落账 MediaAsset */
+  confirmMedia(body: { key: string; name: string; content_type: string; size: number }) {
+    return http.post('/api/v1/cms/media/confirm', body).then((r) => r.data as MediaAsset)
+  },
+
+  /**
+   * 智能上传：直传优先（cos backend，省后端带宽），失败 fallback 中转。
+   * - cos: presign → fetch PUT → confirm
+   * - local / CORS 未配 / 直传失败: fallback uploadMediaViaAdmin
+   * 调用方无感（仍调 uploadMedia）。
+   */
+  async uploadMedia(file: File, onProgress?: (e: AxiosProgressEvent) => void) {
+    try {
+      const p = await this.presignMedia(file)
+      const resp = await fetch(p.url, {
+        method: 'PUT',
+        body: file,
+        headers: p.required_headers,
+      })
+      if (!resp.ok) throw new Error(`PUT COS failed: ${resp.status}`)
+      return await this.confirmMedia({
+        key: p.key,
+        name: file.name,
+        content_type: file.type || 'application/octet-stream',
+        size: file.size,
+      })
+    } catch {
+      // 直传不可用（local backend 返 400 / CORS 未配 / 网络）→ fallback 中转
+      return this.uploadMediaViaAdmin(file, onProgress)
+    }
   },
   listMedia(params?: { type?: 'image' | 'video' }) {
     return http.get('/api/v1/cms/media', { params }).then((r) => r.data.items as MediaAsset[])
