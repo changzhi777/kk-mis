@@ -78,8 +78,8 @@ logs/
 data/
 uploads/
 !uploads/.gitkeep
-storage/
-!storage/.gitkeep
+/storage/
+!/storage/.gitkeep
 
 # ===== Docker =====
 .dockerignore

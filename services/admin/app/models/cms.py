@@ -27,7 +27,15 @@ from .enterprise import pk
 
 
 class MediaAsset(Base):
-    """素材库（图片/视频）"""
+    """素材库（图片/视频）
+
+    2026-07-14 引入 Storage 抽象层（Phase 0）：
+    - storage_backend: 'local' | 'cos'
+    - storage_key: ObjectKey.value（如 'cms/media/abc.png'）
+    - etag: COS ETag；local 用 UUID 占位
+    - content_type: MIME（推荐存）
+    老记录 defaults 'local' / None 兼容。
+    """
 
     __tablename__ = "cms_media_asset"
 
@@ -39,6 +47,11 @@ class MediaAsset(Base):
     alt = Column(String(200), nullable=True)  # 图片说明
     tags = Column(JSON, default=list)  # 标签列表
     uploaded_by = Column(BigInteger, nullable=True)
+    # ── Storage 抽象层新增字段（2026-07-14）──
+    storage_backend = Column(String(20), default="local", nullable=False)  # 'local' | 'cos'
+    storage_key = Column(String(512), nullable=True)  # ObjectKey.value；老数据为 NULL
+    etag = Column(String(64), nullable=True)  # COS ETag / MD5；local 用 UUID 占位
+    content_type = Column(String(64), default="image/png", nullable=False)
     created_at = Column(DateTime, default=utcnow)
 
 

@@ -102,6 +102,22 @@ class Settings(BaseModel):
     # CORS
     cors_origins: str = ""
 
+    # ── Storage 抽象层（2026-07-14 Sprint 0 引入，Phase 0 仍走 local） ──
+    storage_backend: str = ""        # 'local' | 'cos'
+    storage_local_root: str = ""     # local 模式文件存储根目录
+
+    # COS（Tencent Cloud 对象存储）— Phase 1 实装才生效
+    cos_region: str = ""             # e.g. 'ap-guangzhou'
+    cos_secret_id: str = ""          # CAM 子账号 SecretId（推荐 STS 临时凭证）
+    cos_secret_key: str = ""         # CAM 子账号 SecretKey
+    cos_bucket: str = ""             # e.g. 'szdhts-prod-1300000000'
+    cos_appid: str = ""              # bucket 已含 appid 可留空
+    cos_scheme: str = ""             # 'https' | 'http'，默认 https
+    cos_cdn_domain: str = ""         # 加速域名；留空走源站
+    cos_presign_expire: int = 0      # 上传 URL 有效期（秒）
+    cos_download_expire: int = 0     # 下载 URL 有效期（秒）
+    cos_max_object_mb: int = 0       # 单对象最大字节（MB）
+
     # 日志
     log_level: str = ""
 
@@ -139,6 +155,19 @@ class Settings(BaseModel):
             wechat_redirect_uri=_env("WECHAT_REDIRECT_URI", ""),
             oauth_frontend_redirect=_env("OAUTH_FRONTEND_REDIRECT", "/oa/oauth/callback"),
             cors_origins=_env("CORS_ORIGINS", "*"),
+            # ── Storage / COS ──
+            storage_backend=_env("STORAGE_BACKEND", "local"),
+            storage_local_root=_env("STORAGE_LOCAL_ROOT", "storage/uploads"),
+            cos_region=_env("COS_REGION", ""),
+            cos_secret_id=_env("COS_SECRET_ID", ""),
+            cos_secret_key=_env("COS_SECRET_KEY", ""),
+            cos_bucket=_env("COS_BUCKET", ""),
+            cos_appid=_env("COS_APPID", ""),
+            cos_scheme=_env("COS_SCHEME", "https"),
+            cos_cdn_domain=_env("COS_CDN_DOMAIN", ""),
+            cos_presign_expire=_env_int("COS_PRESIGN_EXPIRE", 3600),
+            cos_download_expire=_env_int("COS_DOWNLOAD_EXPIRE", 600),
+            cos_max_object_mb=_env_int("COS_MAX_OBJECT_MB", 500),
             log_level=_env("LOG_LEVEL", "INFO"),
         )
 
