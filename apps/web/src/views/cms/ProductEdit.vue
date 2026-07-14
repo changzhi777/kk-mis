@@ -15,7 +15,12 @@
         <el-col :span="12"><el-form-item label="标题"><el-input v-model="form.title" /></el-form-item></el-col>
         <el-col :span="12"><el-form-item label="URL标识"><el-input v-model="form.slug" placeholder="如 shanghai-3day" /></el-form-item></el-col>
         <el-col :span="8"><el-form-item label="产品类型"><el-select v-model="form.type" @change="onTypeChange"><el-option label="订制游" value="custom" /><el-option label="权益卡" value="pass" /></el-select></el-form-item></el-col>
-        <el-col :span="8"><el-form-item label="目的地"><el-input v-model="form.destination" /></el-form-item></el-col>
+        <el-col :span="8"><el-form-item label="目的地">
+          <div class="row-line">
+            <el-input v-model="form.destination" placeholder="城市名" />
+            <el-button link type="primary" @click="checkWeather">查天气</el-button>
+          </div>
+        </el-form-item></el-col>
         <el-col :span="8"><el-form-item label="主题"><el-input v-model="form.theme" placeholder="海岛/亲子/商务" /></el-form-item></el-col>
         <el-col :span="8"><el-form-item label="分类"><el-select v-model="form.category" clearable><el-option v-for="c in categories" :key="c" :label="c" :value="c" /></el-select></el-form-item></el-col>
         <el-col :span="8"><el-form-item label="标签"><el-input v-model="tagsText" placeholder="逗号分隔，如 蜜月,海岛" /></el-form-item></el-col>
@@ -83,6 +88,30 @@
 
     <MediaPicker v-model="coverPickerVisible" @confirm="onPickCover" />
     <MediaPicker v-model="galleryPickerVisible" multiple @confirm="onPickGallery" />
+
+    <!-- 天气参考弹窗（行程设计辅助） -->
+    <el-dialog v-model="weatherDialog" :title="`天气参考 - ${form.destination || ''}`" width="540">
+      <div v-if="weatherLoading" v-loading="true" style="height: 100px"></div>
+      <template v-else-if="weatherData">
+        <div class="w-now">
+          <span class="w-icon">{{ iconEmoji(weatherData.icon) }}</span>
+          <span class="w-temp">{{ weatherData.temperature }}°</span>
+          <div class="w-detail">
+            <div>{{ weatherData.text }}</div>
+            <div class="w-sub">体感 {{ weatherData.feelsLike }}° · 湿度 {{ weatherData.humidity }}% · {{ weatherData.windDir }}{{ weatherData.windScale }}级</div>
+          </div>
+        </div>
+        <div v-if="forecastData.length" class="w-forecast">
+          <div v-for="f in forecastData" :key="f.fxDate" class="w-day">
+            <div class="w-date">{{ f.fxDate.slice(5) }}</div>
+            <div class="w-d-icon">{{ iconEmoji(f.iconDay) }}</div>
+            <div class="w-d-temp">{{ f.tempMax }}°/{{ f.tempMin }}°</div>
+            <div class="w-d-text">{{ f.textDay }}</div>
+          </div>
+        </div>
+      </template>
+      <el-empty v-else description="输入目的地后查天气" />
+    </el-dialog>
   </el-card>
 </template>
 <script setup lang="ts">
@@ -91,9 +120,9 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import RichEditor from '@/components/RichEditor.vue'
 import MediaPicker from '@/components/MediaPicker.vue'
-import cmsApi from '@/api/cms'
+import cmsApi, { iconEmoji } from '@/api/cms'
 import { getApiError } from '@/api/admin'
-import type { TourProduct } from '@/api/cms'
+import type { TourProduct, Weather, WeatherForecastDay } from '@/api/cms'
 
 const route = useRoute()
 const router = useRouter()
@@ -211,10 +240,42 @@ async function save() {
   } catch (e: unknown) { ElMessage.error(getApiError(e, '失败')) } finally { saving.value = false }
 }
 
+// 行程设计天气参考
+const weatherDialog = ref(false)
+const weatherLoading = ref(false)
+const weatherData = ref<Weather | null>(null)
+const forecastData = ref<WeatherForecastDay[]>([])
+async function checkWeather() {
+  if (!form.destination) {
+    ElMessage.warning('请先填目的地')
+    return
+  }
+  weatherDialog.value = true
+  weatherLoading.value = true
+  try {
+    weatherData.value = await cmsApi.getWeather(form.destination)
+    forecastData.value = (await cmsApi.getForecast(form.destination)).daily
+  } catch (e: unknown) {
+    ElMessage.error(getApiError(e, '查询失败'))
+  } finally {
+    weatherLoading.value = false
+  }
+}
+
 onMounted(load)
 </script>
 <style scoped>
 .hr { display: flex; justify-content: space-between; align-items: center }
 .ct { font-weight: 600; color: var(--el-text-color-primary) }
 .row-line { display: flex; gap: 6px; margin-bottom: 6px; align-items: center; }
+.w-now { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.w-icon { font-size: 36px; }
+.w-temp { font-size: 32px; font-weight: 300; color: var(--el-color-primary); }
+.w-sub { font-size: 12px; color: var(--el-text-color-secondary); margin-top: 2px; }
+.w-forecast { display: flex; gap: 8px; overflow-x: auto; }
+.w-day { text-align: center; min-width: 68px; padding: 8px 4px; background: var(--el-fill-color-light); border-radius: 8px; }
+.w-date { font-size: 12px; color: var(--el-text-color-secondary); }
+.w-d-icon { font-size: 20px; margin: 4px 0; }
+.w-d-temp { font-size: 13px; font-weight: 600; }
+.w-d-text { font-size: 11px; color: var(--el-text-color-secondary); }
 </style>

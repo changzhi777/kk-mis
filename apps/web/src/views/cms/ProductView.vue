@@ -20,6 +20,26 @@
       </div>
 
       <div class="container">
+        <!-- 目的地天气（行程参考） -->
+        <section v-if="weather" class="block weather-card">
+          <div class="w-now">
+            <span class="w-icon">{{ iconEmoji(weather.icon) }}</span>
+            <div class="w-temp">{{ weather.temperature }}°</div>
+            <div class="w-detail">
+              <div class="w-city">{{ weather.city }} · {{ weather.text }}</div>
+              <div class="w-sub">体感 {{ weather.feelsLike }}° · 湿度 {{ weather.humidity }}% · {{ weather.windDir }}{{ weather.windScale }}级</div>
+            </div>
+          </div>
+          <div v-if="forecast.length" class="w-forecast">
+            <div v-for="f in forecast" :key="f.fxDate" class="w-day">
+              <div class="w-date">{{ f.fxDate.slice(5) }}</div>
+              <div class="w-d-icon">{{ iconEmoji(f.iconDay) }}</div>
+              <div class="w-d-temp">{{ f.tempMax }}°/{{ f.tempMin }}°</div>
+              <div class="w-d-text">{{ f.textDay }}</div>
+            </div>
+          </div>
+        </section>
+
         <section v-if="p.highlights?.length" class="block">
           <h2>产品亮点</h2>
           <ul class="highlights"><li v-for="(h, i) in p.highlights" :key="i">{{ h }}</li></ul>
@@ -205,16 +225,18 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import DOMPurify from 'dompurify'
-import cmsApi from '@/api/cms'
+import cmsApi, { iconEmoji } from '@/api/cms'
 import { getApiError } from '@/api/admin'
 import { useEndUserStore } from '@/stores/endUser'
-import type { InquiryLead, ProductOrder, TourProduct } from '@/api/cms'
+import type { InquiryLead, ProductOrder, TourProduct, Weather, WeatherForecastDay } from '@/api/cms'
 
 const route = useRoute()
 const router = useRouter()
 const endUser = useEndUserStore()
 const p = ref<TourProduct | null>(null)
 const related = ref<TourProduct[]>([])
+const weather = ref<Weather | null>(null)
+const forecast = ref<WeatherForecastDay[]>([])
 const loading = ref(false)
 const notFound = ref(false)
 
@@ -256,6 +278,15 @@ async function load() {
       related.value = await cmsApi.getRelated(route.params.slug as string)
     } catch {
       related.value = []
+    }
+    // 目的地天气（实时 + 3d 预报，行程参考）
+    if (p.value?.destination) {
+      try {
+        weather.value = await cmsApi.getWeather(p.value.destination)
+        forecast.value = (await cmsApi.getForecast(p.value.destination)).daily
+      } catch {
+        /* 天气失败不阻塞 */
+      }
     }
   } catch {
     notFound.value = true
@@ -431,6 +462,18 @@ onMounted(load)
 .hero .summary { margin: 0 16px; color: rgba(255, 255, 255, 0.92); font-size: 15px; line-height: 1.6; }
 .block { background: var(--el-bg-color); border-radius: 10px; padding: 20px; margin-bottom: 14px; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04); }
 .block h2 { font-size: 19px; margin: 0 0 16px; color: var(--el-text-color-primary); border-left: 4px solid var(--el-color-primary); padding-left: 10px; }
+.weather-card { background: linear-gradient(135deg, var(--el-color-primary-light-9), var(--el-bg-color)); }
+.w-now { display: flex; align-items: center; gap: 14px; }
+.w-icon { font-size: 40px; }
+.w-temp { font-size: 36px; font-weight: 300; color: var(--el-color-primary); }
+.w-city { font-size: 15px; font-weight: 600; color: var(--el-text-color-primary); }
+.w-sub { font-size: 12px; color: var(--el-text-color-secondary); margin-top: 2px; }
+.w-forecast { display: flex; gap: 10px; margin-top: 14px; overflow-x: auto; }
+.w-day { text-align: center; min-width: 70px; padding: 8px 4px; background: var(--el-bg-color); border-radius: 8px; }
+.w-date { font-size: 12px; color: var(--el-text-color-secondary); }
+.w-d-icon { font-size: 22px; margin: 4px 0; }
+.w-d-temp { font-size: 13px; font-weight: 600; color: var(--el-text-color-primary); }
+.w-d-text { font-size: 11px; color: var(--el-text-color-secondary); margin-top: 2px; }
 .highlights { list-style: none; padding: 0; margin: 0; }
 .highlights li { padding: 9px 0; border-bottom: 1px dashed var(--el-border-color-lighter); color: var(--el-text-color-regular); }
 .highlights li:before { content: '✓ '; color: var(--el-color-primary); font-weight: bold; }

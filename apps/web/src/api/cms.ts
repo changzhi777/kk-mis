@@ -194,6 +194,39 @@ export function endHeaders(): Record<string, string> {
   return t ? { Authorization: `Bearer ${t}` } : {}
 }
 
+/** 和风 icon code → emoji（简化常用映射） */
+export function iconEmoji(code?: string | number): string {
+  const n = parseInt(String(code || '999'))
+  if (n === 100) return '☀️'
+  if (n < 105) return '⛅' // 101-104 多云/阴
+  if (n < 200) return '🌤️'
+  if (n < 400) return '🌧️' // 300-399 雨
+  if (n < 500) return '❄️' // 400-499 雪
+  if (n < 600) return '🌫️' // 500-599 雾霾
+  return '🌤️'
+}
+
+export interface Weather {
+  city: string
+  text: string
+  temperature: string | number
+  feelsLike?: string | number
+  humidity?: string | number
+  icon?: string
+  windDir?: string
+  windScale?: string
+}
+
+export interface WeatherForecastDay {
+  fxDate: string
+  tempMax: string
+  tempMin: string
+  textDay: string
+  textNight: string
+  iconDay: string
+  [k: string]: unknown
+}
+
 // ===== API =====
 export const cmsApi = {
   // 产品
@@ -346,6 +379,18 @@ export const cmsApi = {
     return http
       .get('/api/v1/cms/auth/me', { headers: endHeaders() })
       .then((r) => r.data as EndUser)
+  },
+
+  // 天气（和风，公开）
+  getWeather(city: string) {
+    return http
+      .get('/api/v1/cms/weather', { params: { city } })
+      .then((r) => r.data as Weather)
+  },
+  getForecast(city: string, days = 3) {
+    return http
+      .get('/api/v1/cms/weather/forecast', { params: { city, days } })
+      .then((r) => r.data as { city: string; daily: WeatherForecastDay[] })
   },
 }
 

@@ -8,6 +8,7 @@ from .payments import router as payments_router
 from .products import router as products_router
 from .reviews import router as reviews_router
 from .stats import router as stats_router
+from .weather import router as weather_router
 
 cms_routers = [
     auth_router,
@@ -20,6 +21,7 @@ cms_routers = [
     reviews_router,
     stats_router,
     payments_router,
+    weather_router,
 ]
 
 __all__ = ["cms_routers"]
