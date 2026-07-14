@@ -392,6 +392,13 @@ export const cmsApi = {
       .get('/api/v1/cms/weather/forecast', { params: { city, days } })
       .then((r) => r.data as { city: string; daily: WeatherForecastDay[] })
   },
+
+  /** 调 oa-agent 同步对话（AI 设计行程用，需 oa-agent :9001 跑着） */
+  oaAgentChatSync(message: string) {
+    return http
+      .post('/api/v1/oa-agent/chat/sync', { message })
+      .then((r) => r.data as Record<string, unknown>)
+  },
 }
 
 export default cmsApi

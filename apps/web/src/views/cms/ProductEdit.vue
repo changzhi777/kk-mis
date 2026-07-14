@@ -62,6 +62,7 @@
             <el-button link type="danger" @click="form.custom?.itinerary.splice(i, 1)">删</el-button>
           </div>
           <el-button link type="primary" @click="addItinerary">+ 添加行程日</el-button>
+          <el-button link type="success" :loading="aiDesigning" @click="aiDesignItinerary">✨ AI 设计行程</el-button>
         </el-form-item>
       </template>
 
@@ -259,6 +260,55 @@ async function checkWeather() {
     ElMessage.error(getApiError(e, '查询失败'))
   } finally {
     weatherLoading.value = false
+  }
+}
+
+// AI 设计行程（调 oa-agent，参考天气 + 产品 → 生成 itinerary JSON）
+const aiDesigning = ref(false)
+
+function extractItineraryJson(text: string): Record<string, unknown>[] | null {
+  const m = text.match(/\[[\s\S]*\]/)
+  if (!m) return null
+  try {
+    return JSON.parse(m[0]) as Record<string, unknown>[]
+  } catch {
+    return null
+  }
+}
+
+async function aiDesignItinerary() {
+  if (!form.destination) {
+    ElMessage.warning('请先填目的地')
+    return
+  }
+  if (!form.custom) {
+    onTypeChange('custom')
+  }
+  aiDesigning.value = true
+  try {
+    // 拼天气上下文
+    let weatherInfo = '未知'
+    try {
+      const w = await cmsApi.getWeather(form.destination)
+      weatherInfo = `${w.text} ${w.temperature}° 体感${w.feelsLike}° 湿度${w.humidity}%`
+    } catch {
+      /* 天气失败不阻塞 AI */
+    }
+    const dayCount = form.custom?.itinerary.length || 3
+    const prompt = `为旅游产品"${form.title || '旅游'}"设计 ${dayCount} 天 ${form.destination} 行程。当前当地天气：${weatherInfo}。请据此合理安排行程（如雨天优先室内）。返回纯 JSON 数组（不要 markdown 围栏、不要解释），每项含字段：day(数字),title(行程标题),transport(交通),hotel(住宿),spots(景点字符串数组),meals(餐饮),description(描述)。只返回 JSON 数组本身。`
+    const res = await cmsApi.oaAgentChatSync(prompt)
+    const text = String(res.final || res.message || res.content || '')
+    const json = extractItineraryJson(text)
+    if (json && json.length && form.custom) {
+      form.custom.itinerary = json as never[]
+      ElMessage.success(`AI 已生成 ${json.length} 天行程`)
+    } else {
+      ElMessage.warning('AI 未返回有效行程 JSON，请手动编排')
+    }
+  } catch (e: unknown) {
+    ElMessage.error(getApiError(e, 'AI 设计失败（oa-agent :9001 未启动？）'))
+  } finally {
+    aiDesigning.value = false
   }
 }
 
