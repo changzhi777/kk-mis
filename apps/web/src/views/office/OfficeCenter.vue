@@ -63,6 +63,16 @@
           <pre>{{ mergeResult.ok ? JSON.stringify(mergeResult.result, null, 2) : mergeResult.error }}</pre>
         </div>
       </el-tab-pane>
+
+      <!-- 表格编辑（Sprint 2 Univer）-->
+      <el-tab-pane label="表格编辑" name="sheet">
+        <div class="muted">上传 xlsx → Univer Sheets 编辑（本地 SheetJS 解析 → cellData → @univerjs/preset-sheets-core 渲染）。</div>
+        <div class="row" style="margin: 10px 0">
+          <input type="file" accept=".xlsx,.xls" @change="onXlsxChange" />
+          <el-button v-if="sheetData" size="small" @click="sheetData = null">清空</el-button>
+        </div>
+        <UniverSheet v-if="sheetData" :key="sheetKey" :sheets="sheetData" />
+      </el-tab-pane>
     </el-tabs>
 
     <div class="muted small foot">
@@ -75,7 +85,9 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import DOMPurify from 'dompurify'
+import * as XLSX from 'xlsx'
 import { http, getApiError } from '@/api/admin'
+import UniverSheet from '@/components/UniverSheet.vue'
 
 interface OfficeHealth {
   ok: boolean
@@ -123,10 +135,40 @@ const mergeForm = reactive({
 const merging = ref(false)
 const mergeResult = ref<ToolResult | null>(null)
 
+// 表格编辑（Sprint 2 Univer）
+const sheetData = ref<Record<string, { name?: string; cellData?: Record<number, Record<number, { v: unknown }>> }> | null>(null)
+const sheetKey = ref(0)
+
 // mammoth 输出的 html 经 DOMPurify 清洗后再 v-html（防 XSS，项目惯例同 Detail.vue）
 const sanitizedPreview = computed(() =>
   previewHtml.value ? DOMPurify.sanitize(previewHtml.value) : '',
 )
+
+// xlsx → Univer cellData（SheetJS 解析 + 转 Univer {row:{col:{v}}} 格式）
+function onXlsxChange(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    const wb = XLSX.read(reader.result, { type: 'array' })
+    const sheets: Record<string, { name?: string; cellData?: Record<number, Record<number, { v: unknown }>> }> = {}
+    wb.SheetNames.forEach((name, i) => {
+      const ws = wb.Sheets[name]
+      const range = XLSX.utils.decode_range(ws['!ref'] || 'A1')
+      const cellData: Record<number, Record<number, { v: unknown }>> = {}
+      for (let r = range.s.r; r <= range.e.r; r++) {
+        for (let c = range.s.c; c <= range.e.c; c++) {
+          const cell = ws[XLSX.utils.encode_cell({ r, c })]
+          if (cell) (cellData[r] ||= {})[c] = { v: cell.v }
+        }
+      }
+      sheets[`sheet${i + 1}`] = { name, cellData }
+    })
+    sheetData.value = sheets
+    sheetKey.value++
+  }
+  reader.readAsArrayBuffer(file)
+}
 
 async function loadHealth() {
   loadingHealth.value = true
