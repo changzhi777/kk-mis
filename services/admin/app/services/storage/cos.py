@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import AsyncIterator
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any
@@ -108,14 +109,23 @@ class CosStorage(Storage):
     # ── 内部：run_in_executor 包装 ──────────────────────────────
 
     async def _call(self, method_name: str, **kwargs: Any) -> Any:
-        """同步 cos-python-sdk-v5 调用包成 async。"""
+        """同步 cos-python-sdk-v5 调用包成 async + Prometheus 指标埋点。"""
+        from .metrics import COS_DURATION, COS_ERRORS, COS_REQUESTS
+
         loop = asyncio.get_running_loop()
         method = getattr(self._client, method_name)
+        start = time.time()
         try:
-            return await loop.run_in_executor(None, lambda: method(**kwargs))
+            result = await loop.run_in_executor(None, lambda: method(**kwargs))
+            COS_REQUESTS.labels(operation=method_name, status="ok").inc()
+            return result
         except Exception as exc:
+            COS_REQUESTS.labels(operation=method_name, status="error").inc()
+            COS_ERRORS.labels(operation=method_name).inc()
             self._translate_error(exc, kwargs.get("Key", "?"))
             raise  # never reach
+        finally:
+            COS_DURATION.labels(operation=method_name).observe(time.time() - start)
 
     @staticmethod
     def _translate_error(exc: Exception, key: str) -> None:

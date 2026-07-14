@@ -13,3 +13,4 @@ httpx>=0.28  # OAuth 第三方登录（GitHub/微信 API 调用）
 # ── Storage Sprint 1：腾讯云 COS（可选；backend=cos 时启用）──
 # Sprint 0 默认 local backend，无需此依赖；切 cos 后 `pip install cos-python-sdk-v5`
 cos-python-sdk-v5>=1.9.0   # 用于 cos-python-sdk-v5 COS S3-兼容客户端
+prometheus_client>=0.20

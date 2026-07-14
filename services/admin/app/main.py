@@ -3,8 +3,9 @@ import logging
 import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from starlette.requests import Request
 
 from . import cache
@@ -111,6 +112,12 @@ async def health():
         "version": "0.1.0",
         "database": settings.database_display,
     }
+
+
+@app.get("/metrics")
+async def metrics():
+    """Prometheus 指标端点（含 cos_requests_total / cos_errors_total / cos_duration_seconds）。"""
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 @app.get("/")
