@@ -134,6 +134,14 @@ export const adminApi = {
     const { data } = await http.get('/api/v1/finance/reports/by-category', { params })
     return data.items as CategoryReportItem[]
   },
+  async reportByAccount(params?: Record<string, unknown>) {
+    const { data } = await http.get('/api/v1/finance/reports/by-account', { params })
+    return data.items as { account_id: number; account: string; income: number; expense: number; balance: number }[]
+  },
+  async reportByMonth(params?: Record<string, unknown>) {
+    const { data } = await http.get('/api/v1/finance/reports/by-month', { params })
+    return data.items as { month: string; income: number; expense: number; balance: number }[]
+  },
   // 资产专用
   async generateCards(batchId: number, quantity: number) {
     const { data } = await http.post(`/api/v1/asset/batches/${batchId}/generate`, { quantity })
