@@ -205,3 +205,21 @@ async def my_menus(
             tree.append(node)
     await cache.set_json(f"user:{user.id}:menus", tree)
     return tree
+
+
+@router.get("/preferences")
+async def get_preferences(user: User = Depends(get_current_user)):
+    """用户偏好（dashboard 模块顺序等）。"""
+    return user.preferences or {}
+
+
+@router.put("/preferences")
+async def update_preferences(
+    body: dict,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """更新用户偏好（body 合并覆盖）。"""
+    user.preferences = {**(user.preferences or {}), **body}
+    await session.commit()
+    return {"success": True, "preferences": user.preferences}

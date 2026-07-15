@@ -9,6 +9,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    JSON,
     String,
     Table,
 )
@@ -64,6 +65,7 @@ class User(Base):
     dept_id = Column(BigInteger, nullable=True, index=True)
     status = Column(Boolean, default=True)
     last_login = Column(DateTime, nullable=True)
+    preferences = Column(JSON, nullable=True)  # 用户偏好（dashboard 模块顺序等）
     created_at = Column(DateTime, default=utcnow)
 
 
