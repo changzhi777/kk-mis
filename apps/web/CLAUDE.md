@@ -428,3 +428,118 @@ import '@univerjs/preset-sheets-core/lib/index.css'
 ### 自动生成（勿改）
 - `src/types/auto-imports.d.ts`
 - `src/types/components.d.ts`
+
+---
+
+## 9. `src/api/cms.ts` 深读 — CMS 前后端桥梁
+
+> **职责**：封装 admin `/api/v1/cms/*` 全部端点的 TS API 客户端，**复用 `admin.ts::http`**（JWT 拦截 + 401 跳登录），与 admin token 共通道；额外为 C 端 EndUser 账号提供独立 token 注入（`kk-cms-end-user-token` localStorage key）。**全量类型化**（2026-07-14 `any` 159→87 后，cms.ts 0 `any`）。
+
+### 9.1 文件结构（457 行，分 4 段）
+
+| 段 | 行 | 内容 |
+|----|----|----|
+| 类型系统 | L8-L228 | 14 个 interface + 4 个 type union，对齐后端 `schemas/cms.py` |
+| 工具函数 | L191-L218 | `endHeaders()`（C 端 JWT 注入）+ `iconEmoji()`（和风 icon code → emoji 映射） |
+| `cmsApi` 对象 | L231-L454 | 47 个 API 方法，按业务域分 11 组 |
+| 默认导出 | L456 | `export default cmsApi` |
+
+### 9.2 类型系统（核心 interface 一览）
+
+| 类型 | 业务含义 |
+|------|---------|
+| `TourProduct` | CMS 主实体，含 `custom`（订制游 A）/ `pass_config`（权益卡 C）双形态；含 SEO + view_count + reviews 嵌套 |
+| `TourCustom` / `TourPass` | A/C 双形态配置（行程/服务流/价格模式 vs 面值/权益/适用商户） |
+| `MediaAsset` / `Merchant` | 素材库 + 权益商户 |
+| `InquiryLead` | 询价线索（A 订制游提交，公开端点免登录） |
+| `ProductOrder` | 权益卡订单（含 `issued_card_no/password` 真发卡结果 + `transaction_id`） |
+| `Coupon` / `CouponValidateResult` | 优惠券规则 + 校验响应（含 `discount` + `reason`） |
+| `Review` | 评价（`pending/approved/rejected` 三态） |
+| `DashboardStats` | 看板数据（products/views/leads/orders/revenue + top_products） |
+| `EndUser` | C 端账号（phone + nickname） |
+| `Weather` / `WeatherForecastDay` | 和风天气实时 + 预报 |
+
+### 9.3 API 方法分组（11 组，与后端 router 一一对应）
+
+| 组 | 方法数 | 主要端点 | 说明 |
+|----|-------|---------|------|
+| 产品 | 6 | `GET /cms/products` `/detail/:id` `/products/:slug` `POST/PUT/DELETE` | `getPublicProduct(slug)` 公开（无需登录），`getProduct(id)` 管理详情（含 draft） |
+| 媒体 | 5 | `/cms/media` `/upload` `/confirm` + `/storage/presign` | **uploadMedia 直传优先 + 中转 fallback**（见 9.4） |
+| 商户 | 4 | `/cms/merchants` CRUD | 权益商户管理 |
+| 询价线索 | 4 | `/cms/leads` `POST` 公开 + `GET/PUT/DELETE` 管理 | `submitLead` 无需登录（公开询价表单） |
+| 订单 | 3 | `/cms/orders` `POST/POST pay` `GET` | `createOrder` 含 `coupon_code` + `promo_code`（代理推广码） |
+| 优惠券 | 5 | `/cms/coupons` CRUD + `/validate` | `validateCoupon(code, total)` 实时校验 |
+| 评论 | 4 | `/cms/reviews` `POST` 公开 + `GET/PUT/DELETE` 管理 | `submitReview` 公开提交，待审核 |
+| 看板 | 1 | `/cms/stats/dashboard` | 漏斗数据（浏览→询价→订单→支付） |
+| 搜索推荐 | 2 | `/cms/products/search/results` `/related/:slug` | 全文搜索 + 相关产品 |
+| C 端账号 | 3 | `/cms/auth/{register,login,me}` | `getEndUserMe()` 用 `endHeaders()` 注入独立 token |
+| 天气 + AI | 3 | `/cms/weather` `/forecast` + `/oa-agent/chat/sync` | 公开天气 + AI 设计行程（oa-agent :9001） |
+
+### 9.4 `uploadMedia` 智能直传（核心亮点，2026-07-15 Sprint 0/1/Phase 2 实装）
+
+```ts
+async uploadMedia(file: File, onProgress?) {
+  try {
+    const p = await this.presignMedia(file)        // /api/v1/storage/presign
+    const resp = await fetch(p.url, { method: 'PUT', body: file, headers: p.required_headers })
+    if (!resp.ok) throw new Error(`PUT COS failed: ${resp.status}`)
+    return await this.confirmMedia({ key: p.key, name, content_type, size })  // /api/v1/cms/media/confirm
+  } catch {
+    return this.uploadMediaViaAdmin(file, onProgress)  // fallback /api/v1/cms/media/upload 中转
+  }
+}
+```
+
+**直传链**：`presign → fetch PUT COS → confirmMedia`（3 调用，省后端带宽 + 提速）。
+**Fallback 触发**：cos backend 不存在 / CORS 未配 / 网络 / PUT 非 2xx → `uploadMediaViaAdmin` 中转（multipart/form-data 上传 admin → Storage 抽象层）。
+**调用方无感**：UI 仅调 `uploadMedia`，内部 try/catch 切换；`onProgress` 仅 fallback 路径生效。
+
+### 9.5 C 端账号双 token 设计
+
+| 通道 | Token 来源 | 注入方式 | 用途 |
+|------|----------|---------|------|
+| **Admin 通道** | `kk-mis-token` localStorage | `http` 拦截器自动加 `Authorization: Bearer` | CMS 管理视图（ProductEdit/MediaPicker/MerchantList 等 11 view） |
+| **C 端通道** | `kk-cms-end-user-token` localStorage | `endHeaders()` 手动注入（仅 `getEndUserMe` 用） | 公开页 + C 端用户中心；token `type=end_user` 与 admin JWT 区分 |
+
+> **设计要点**：C 端账号可选——匿名仍可浏览/下单/评论（公开端点免登录），登录后享用户中心 + 历史订单；两 token 并存不互踢。
+
+### 9.6 公开端点 vs 管理端点（auth 边界）
+
+| 公开（无需 token） | 需要 admin token | 需要 C 端 token（可选） |
+|-------------------|-----------------|----------------------|
+| `getPublicProduct(slug)` | 全部 CRUD（products/media/merchants/coupons/reviews/leads） | `getEndUserMe` |
+| `submitLead` | `listLeads/updateLeadStatus` | |
+| `submitReview` | `listReviews/updateReviewStatus` | |
+| `searchProducts/getRelated` | `getDashboard` | |
+| `getWeather/getForecast` | `createOrder/payOrder/listOrders`（订单需登录） | |
+| `oaAgentChatSync`（公开 AI） | `presignMedia/confirmMedia`（管理） | |
+
+### 9.7 与后端对应速查（admin 12 router）
+
+| 前端方法 | 后端端点 | router 文件 |
+|---------|---------|------------|
+| `getPublicProduct(slug)` | `GET /cms/products/{slug}` | `routes/cms/products.py` |
+| `submitLead` | `POST /cms/leads` | `routes/cms/leads.py` |
+| `createOrder` | `POST /cms/orders` | `routes/cms/orders.py` |
+| `validateCoupon` | `POST /cms/coupons/validate` | `routes/cms/coupons.py` |
+| `presignMedia` | `POST /storage/presign` | `routes/storage.py`（非 cms 子路由） |
+| `getWeather` | `GET /cms/weather` | `routes/cms/weather.py` |
+| `oaAgentChatSync` | `POST /oa-agent/chat/sync` | `routes/oa_agent.py`（非 cms 子路由） |
+
+> **跨子包注意**：`presignMedia` 实际打到 `routes/storage.py`（Sprint 1 通用存储路由），`oaAgentChatSync` 打到 `routes/oa_agent.py`（oa-agent 桥），不是 cms 子路由；UI 调用无感。
+
+### 9.8 iconEmoji 简化映射（和风 icon → emoji）
+
+```ts
+100='☀️' <105='⛅' <200='🌤️' <400='🌧️' <500='❄️' <600='🌫️' else='🌤️'
+```
+
+> 简化版（前缀区间），完整版见后端 `services/cms/weather.py`；UI 用 `iconEmoji(code)` 直接渲染。
+
+---
+
+## 变更记录 (Changelog)
+
+- 2026-07-15 13:30:00 — 续跑增量更新（zcf:init-project）：
+  - **新增 §9 `src/api/cms.ts` 深读**（约 107 行）：CMS 前后端桥梁完整拆解——11 个接口组 / 47 个 API 方法 / 与后端 12 router 端点一一对应 / `uploadMedia` 智能直传优先 + 中转 fallback 详解（presign→PUT→confirm 三步链 + 触发 fallback 的 3 种情况）/ C 端双 token 设计（`kk-mis-token` admin 通道 + `kk-cms-end-user-token` C 端通道 + `endHeaders()` 手动注入）/ 公开端点 vs 管理端点 auth 边界速查表 / `iconEmoji` 和风 icon 简化映射规则 / `presignMedia` 与 `oaAgentChatSync` 跨子包打到 `routes/storage.py` 与 `routes/oa_agent.py`（非 cms 子路由，UI 无感）备注；
+  - **文件状态**：web/CLAUDE.md 429 → **536 行**（净增 107，全部为 §9 新增 + changelog）；vue-tsc 0 / vitest 46 不变（cms.ts 0 `any` 全量类型化，2026-07-14 baseline）；下一步可考虑 §10（views/cms/ 11 视图逐一深读）或 §11（stores/endUser C 端账号 store）。
