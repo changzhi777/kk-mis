@@ -159,6 +159,12 @@ const router = createRouter({
     },
     // 财务（阶段5 填充）
     {
+      path: '/finance/voucher',
+      name: 'finance-voucher',
+      component: () => import('@/views/finance/VoucherList.vue'),
+      meta: { title: '记账凭证', group: 'finance', permission: 'finance:transaction:save' },
+    },
+    {
       path: '/finance/transaction',
       name: 'fin-tx',
       component: () => import('@/views/finance/TransactionList.vue'),

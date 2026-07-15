@@ -142,6 +142,31 @@ export const adminApi = {
     const { data } = await http.get('/api/v1/finance/reports/by-month', { params })
     return data.items as { month: string; income: number; expense: number; balance: number }[]
   },
+  // 复式记账（凭证 + 分录 + 3 报表）
+  async createVoucher(body: { voucher_date: string; summary?: string; entries: { account_id: number; debit?: number; credit?: number; summary?: string }[] }) {
+    const { data } = await http.post('/api/v1/finance/vouchers', body)
+    return data as { id: number; number: string; status: string; debit_total: number; credit_total: number }
+  },
+  async postVoucher(id: number) {
+    const { data } = await http.post(`/api/v1/finance/vouchers/${id}/post`)
+    return data as { success: boolean; posted: boolean }
+  },
+  async listVouchers() {
+    const { data } = await http.get('/api/v1/finance/vouchers')
+    return data.items as { id: number; number: string; voucher_date: string; summary: string; status: string; entries: { account_id: number; debit: number; credit: number }[] }[]
+  },
+  async trialBalance() {
+    const { data } = await http.get('/api/v1/finance/reports/trial-balance')
+    return data as { items: { code: string; name: string; account_type: string; debit: number; credit: number }[]; total_debit: number; total_credit: number; balanced: boolean }
+  },
+  async balanceSheet() {
+    const { data } = await http.get('/api/v1/finance/reports/balance-sheet')
+    return data as { assets: number; liabilities: number; equity: number; balanced: boolean }
+  },
+  async incomeStatement() {
+    const { data } = await http.get('/api/v1/finance/reports/income-statement')
+    return data as { revenue: number; expense: number; profit: number }
+  },
   // 资产专用
   async generateCards(batchId: number, quantity: number) {
     const { data } = await http.post(`/api/v1/asset/batches/${batchId}/generate`, { quantity })
