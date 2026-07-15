@@ -186,11 +186,11 @@
           <el-form-item label="优惠券码">
             <div class="row-line">
               <el-input v-model="buyForm.coupon_code" placeholder="选填" @change="recalc" />
+              <el-button link type="primary" @click="recalc">应用</el-button>
+            </div>
           </el-form-item>
           <el-form-item label="推广码">
             <el-input v-model="buyForm.promo_code" placeholder="选填，代理推广码（享推荐关联）" />
-              <el-button link type="primary" @click="recalc">应用</el-button>
-            </div>
           </el-form-item>
           <el-form-item label="价格">
             <div>
