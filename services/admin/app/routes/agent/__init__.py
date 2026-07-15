@@ -2,6 +2,7 @@ from .agents import router as agents_router
 from .commissions import router as commissions_router
 from .orders import router as orders_router
 from .promo import router as promo_router
+from .withdrawal import router as withdrawal_router
 from .yearly_commission import router as yearly_commission_router
 
 agent_routers = [
@@ -10,6 +11,7 @@ agent_routers = [
     commissions_router,
     yearly_commission_router,
     promo_router,
+    withdrawal_router,
 ]
 
 __all__ = ["agent_routers"]

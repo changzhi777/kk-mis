@@ -177,6 +177,8 @@ class ProductOrder(Base):
     buyer_phone = Column(String(30), nullable=False)
     remark = Column(Text, nullable=True)
     pay_status = Column(String(20), default="pending", nullable=False, index=True)  # pending|paid|cancelled
+    referrer_agent_id = Column(BigInteger, nullable=True, index=True)  # A2 推荐代理（来自推广码）
+    referral_commission = Column(Numeric(12, 2), default=0)  # A2 推荐返佣（total * 5%）
     paid_at = Column(DateTime, nullable=True)
     issued_card_no = Column(String(32), nullable=True)  # 支付后发的卡号（明文一次性给买家）
     issued_card_password = Column(String(10), nullable=True)  # 卡密码（明文一次性）

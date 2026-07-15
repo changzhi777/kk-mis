@@ -89,6 +89,34 @@ class CommissionRecord(Base):
     created_at = Column(DateTime, default=utcnow)
 
 
+class ReferralCommission(Base):
+    """A2 推荐返佣（C 端 ProductOrder 完成时生成，代理推荐客户返佣 total*5%）"""
+    __tablename__ = "referral_commission"
+
+    id = pk()
+    agent_id = Column(BigInteger, ForeignKey("agent.id"), nullable=False, index=True)
+    product_order_id = Column(BigInteger, ForeignKey("cms_product_order.id"), nullable=False, index=True)
+    amount = Column(Numeric(12, 2), nullable=False)
+    status = Column(String(20), default="pending")  # pending/settled/withdrawn
+    settled_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=utcnow)
+
+
+class WithdrawalRequest(Base):
+    """A3 代理提现申请（pending→approved→paid / rejected）"""
+    __tablename__ = "withdrawal_request"
+
+    id = pk()
+    agent_id = Column(BigInteger, ForeignKey("agent.id"), nullable=False, index=True)
+    amount = Column(Numeric(12, 2), nullable=False)
+    status = Column(String(20), default="pending", nullable=False, index=True)  # pending/approved/rejected/paid
+    bank_info = Column(String(200), nullable=True)  # 收款信息（银行卡/微信）
+    reviewed_by = Column(BigInteger, nullable=True)
+    reviewed_at = Column(DateTime, nullable=True)
+    remark = Column(String(200), nullable=True)
+    created_at = Column(DateTime, default=utcnow)
+
+
 class YearlyCommissionRule(Base):
     """年度返佣阶梯规则（按累计销售额分档）"""
     __tablename__ = "yearly_commission_rule"

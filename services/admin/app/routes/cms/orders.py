@@ -62,6 +62,17 @@ async def create_order(req: ProductOrderCreate, session: AsyncSession = Depends(
             raise HTTPException(400, "优惠券已用完")
         discount = _calc_discount(coupon, original)
     total = max(original - discount, Decimal("0")).quantize(Decimal("0.01"))
+    # A2 推广码 → 推荐代理
+    referrer_agent_id = None
+    if req.promo_code:
+        from ...models import Agent
+        agent = (
+            await session.execute(
+                select(Agent).where(Agent.promo_code == req.promo_code, Agent.status.is_(True))
+            )
+        ).scalar_one_or_none()
+        if agent:
+            referrer_agent_id = agent.id
     order = ProductOrder(
         product_id=p.id,
         quantity=req.quantity,
@@ -75,6 +86,7 @@ async def create_order(req: ProductOrderCreate, session: AsyncSession = Depends(
         buyer_phone=req.buyer_phone,
         remark=req.remark,
         pay_status="pending",
+        referrer_agent_id=referrer_agent_id,
     )
     session.add(order)
     await session.commit()
@@ -135,6 +147,15 @@ async def pay_order(order_id: int, session: AsyncSession = Depends(get_session))
     o.pay_status = "paid"
     o.paid_at = utcnow()
     o.transaction_id = result.transaction_id
+    # A2 推荐返佣（total * 5%，pending 待结算）
+    if o.referrer_agent_id:
+        referral = (o.total * Decimal("0.05")).quantize(Decimal("0.01"))
+        o.referral_commission = referral
+        from ...models import ReferralCommission
+        session.add(ReferralCommission(
+            agent_id=o.referrer_agent_id, product_order_id=o.id,
+            amount=referral, status="pending",
+        ))
     if o.coupon_id:
         c = await session.get(Coupon, o.coupon_id)
         if c:

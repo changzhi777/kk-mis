@@ -205,6 +205,7 @@ class ProductOrderCreate(BaseModel):
     product_id: int
     quantity: int = Field(1, ge=1)
     coupon_code: Optional[str] = None
+    promo_code: Optional[str] = None  # A2 推广码（关联推荐代理）
     buyer_name: str = Field(..., max_length=50)
     buyer_phone: str = Field(..., max_length=30)
     remark: Optional[str] = None
