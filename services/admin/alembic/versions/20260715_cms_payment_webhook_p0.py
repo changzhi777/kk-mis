@@ -3,6 +3,16 @@
 Revision ID: 20260715_cms_payment_webhook_p0
 Revises:
 Create Date: 2026-07-15
+
+2026-07-15 Day 1.1.1 修正（与 P0 Day 1.2.1 模型对齐）：
+1. status 改 nullable=True（与模型对齐，让旧 pay_status 行无需 backfill；
+   effective_status hybrid_property 自动从 pay_status 回退）。
+2. paid_at 字段不再在迁移中创建（模型已有，本迁移复用即可）。
+3. (payment_provider, payment_id) 唯一约束改为部分唯一索引
+   WHERE payment_id IS NOT NULL；支持 mock 模式 payment_id 为空。
+   同时 payment_id 列改 nullable=True 以允许 mock 场景写入 NULL。
+4. 移除 DROP pay_status 步骤——业务代码仍写 pay_status，
+   待 Day 1.2.2 业务代码改造完成后再单独 migration 移除。
 """
 
 from __future__ import annotations
@@ -97,18 +107,23 @@ def upgrade() -> None:
             name=ORDER_STATUS_ENUM,
         ).create(bind, checkfirst=True)
 
-    # 2. 新增订单 status，历史数据先由服务端默认值 pending 承接。
+    # 2. 新增订单 status，nullable=True 与 Day 1.2.1 模型对齐。
+    # 历史数据保持 pay_status 原样，effective_status 属性自动从 pay_status 回退；
+    # 不强制 NOT NULL + server_default，让旧 pay_status 行无需 backfill。
     op.add_column(
         "cms_product_order",
         sa.Column(
             "status",
             _status_type(dialect_name),
-            nullable=False,
+            nullable=True,
             server_default=sa.text("'pending'"),
         ),
     )
 
     # 3. 仅迁移旧状态机可识别的值，其他历史值保留为 pending。
+    # pay_status 列保留（LEGACY 字段，兼容窗口约 2-3 个月至 2026-09，
+    # 待 Day 1.2.2 业务代码改造完成后单独 migration 移除），
+    # 这里只是用旧 pay_status 值给新 status 列做一次回填，让历史数据就位。
     if dialect_name == "postgresql":
         op.execute(
             "UPDATE cms_product_order "
@@ -122,13 +137,7 @@ def upgrade() -> None:
             "WHERE pay_status IN ('pending', 'paid', 'cancelled')"
         )
 
-    # 4. 删除旧索引与 pay_status 列；SQLite 通过 batch 重建表。
-    op.drop_index("ix_cms_product_order_pay_status", table_name="cms_product_order")
-    if dialect_name == "sqlite":
-        with op.batch_alter_table("cms_product_order", recreate="always") as batch_op:
-            batch_op.drop_column("pay_status")
-    else:
-        op.drop_column("cms_product_order", "pay_status")
+    # 4. 仅建新 status 索引；pay_status 列与旧索引保留不动。
     op.create_index(
         "idx_cms_product_order_status",
         "cms_product_order",
@@ -136,12 +145,15 @@ def upgrade() -> None:
         unique=False,
     )
 
-    # 5. 支付通知幂等表：provider + 事件 ID 唯一。
+    # 5. 支付通知幂等表：payment_id 可空（mock 模式无支付流水号），
+    # 真支付场景下 (payment_provider, payment_id) 必须唯一。
+    # 采用部分唯一索引 WHERE payment_id IS NOT NULL，
+    # 既保证业务幂等，又允许 mock 模式下多条 NULL 共存。
     op.create_table(
         "cms_payment_idempotency",
         sa.Column("id", _bigint_pk(), primary_key=True, autoincrement=True),
         sa.Column("payment_provider", sa.String(length=20), nullable=False),
-        sa.Column("payment_id", sa.String(length=128), nullable=False),
+        sa.Column("payment_id", sa.String(length=128), nullable=True),
         sa.Column("order_id", sa.BigInteger(), nullable=False),
         sa.Column("request_body_hash", sa.CHAR(length=64), nullable=False),
         sa.Column("response_body", sa.Text(), nullable=True),
@@ -160,11 +172,16 @@ def upgrade() -> None:
             ["cms_product_order.id"],
             name="fk_cms_payment_idempotency_order",
         ),
-        sa.UniqueConstraint(
-            "payment_provider",
-            "payment_id",
-            name="uq_cms_payment_idempotency",
-        ),
+    )
+    # 部分唯一索引：PG 与 SQLite 都支持 partial index；
+    # 业务幂等仅对真支付数据生效，mock NULL 行不受约束。
+    op.create_index(
+        "uq_cms_payment_idempotency",
+        "cms_payment_idempotency",
+        ["payment_provider", "payment_id"],
+        unique=True,
+        postgresql_where=sa.text("payment_id IS NOT NULL"),
+        sqlite_where=sa.text("payment_id IS NOT NULL"),
     )
     op.create_index(
         "idx_cms_payment_idempotency_expires",
@@ -260,7 +277,10 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """删除 P0 新表并把新状态机兼容映射回旧 pay_status。"""
+    """删除 P0 新表、新索引与新 status 列。
+
+    注意：pay_status 列从 upgrade 起就一直保留，downgrade 不需要重建。
+    """
     dialect_name = _dialect_name()
     bind = op.get_bind()
 
@@ -271,6 +291,11 @@ def downgrade() -> None:
     op.drop_index("idx_cms_webhook_retry_status", table_name="cms_webhook_retry")
     op.drop_table("cms_webhook_retry")
 
+    # 部分唯一索引必须先于 drop_table 显式删除（迁移不会自动收）。
+    op.drop_index(
+        "uq_cms_payment_idempotency",
+        table_name="cms_payment_idempotency",
+    )
     op.drop_index(
         "idx_cms_payment_idempotency_order",
         table_name="cms_payment_idempotency",
@@ -281,13 +306,8 @@ def downgrade() -> None:
     )
     op.drop_table("cms_payment_idempotency")
 
-    # 2. 恢复旧列，先允许 NULL 以便安全回填。
-    op.add_column(
-        "cms_product_order",
-        sa.Column("pay_status", sa.String(length=20), nullable=True),
-    )
-
-    # 3. 新状态兼容映射到旧 pending|paid|cancelled 三态。
+    # 2. 新状态兼容映射到旧 pending|paid|cancelled 三态。
+    # （pay_status 列在 upgrade 中未被删除，无需 add_column；这里 idempotent 写回）
     op.execute(
         "UPDATE cms_product_order SET pay_status = CASE "
         "WHEN status IN ('paid', 'card_issuing', 'fulfilled', 'failed') THEN 'paid' "
@@ -295,33 +315,15 @@ def downgrade() -> None:
         "ELSE 'pending' END"
     )
 
-    # 4. 删除新 status，恢复旧列非空约束与索引。
+    # 3. 删除新 status 索引与列；SQLite 通过 batch 重建表。
     op.drop_index("idx_cms_product_order_status", table_name="cms_product_order")
     if dialect_name == "sqlite":
         with op.batch_alter_table("cms_product_order", recreate="always") as batch_op:
-            batch_op.alter_column(
-                "pay_status",
-                existing_type=sa.String(length=20),
-                nullable=False,
-            )
             batch_op.drop_column("status")
     else:
-        op.alter_column(
-            "cms_product_order",
-            "pay_status",
-            existing_type=sa.String(length=20),
-            nullable=False,
-        )
         op.drop_column("cms_product_order", "status")
 
-    op.create_index(
-        "ix_cms_product_order_pay_status",
-        "cms_product_order",
-        ["pay_status"],
-        unique=False,
-    )
-
-    # 5. PostgreSQL 最后删除 ENUM；SQLite 无独立类型对象。
+    # 4. PostgreSQL 最后删除 ENUM；SQLite 无独立类型对象。
     if dialect_name == "postgresql":
         postgresql.ENUM(
             *ORDER_STATUS_VALUES,
