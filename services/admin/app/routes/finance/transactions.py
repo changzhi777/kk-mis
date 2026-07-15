@@ -1,4 +1,7 @@
-"""收支流水路由（录入/删除时联动账户余额）"""
+"""收支流水路由（⚠️ DEPRECATED 2026-07-15：复式记账 Voucher 上线后单式流水逐步废弃，新功能用 /vouchers）。
+
+保留兼容旧数据/前端；新业务用 POST /api/v1/finance/vouchers（借贷平衡 + 过账）。
+"""
 import io
 from datetime import datetime
 from decimal import Decimal

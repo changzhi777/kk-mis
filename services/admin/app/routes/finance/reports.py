@@ -183,19 +183,29 @@ async def balance_sheet(
     assets = Decimal("0")
     liabilities = Decimal("0")
     equity = Decimal("0")
+    expenses = Decimal("0")
+    revenue = Decimal("0")
     for a in accounts:
         bal = a.balance or Decimal("0")
         if a.account_type == "asset":
-            assets += bal  # 借方余额
+            assets += bal
         elif a.account_type == "liability":
-            liabilities += -bal  # 贷方余额（balance 负）
+            liabilities += -bal
         elif a.account_type == "equity":
             equity += -bal
+        elif a.account_type == "expense":
+            expenses += bal  # 借方
+        elif a.account_type == "revenue":
+            revenue += -bal  # 贷方
+    # 扩展会计等式（结转前）：assets + expense = liabilities + equity + revenue
     return {
         "assets": float(assets),
         "liabilities": float(liabilities),
         "equity": float(equity),
-        "balanced": assets == liabilities + equity,
+        "expenses": float(expenses),
+        "revenue": float(revenue),
+        "profit": float(revenue - expenses),
+        "balanced": (assets + expenses) == (liabilities + equity + revenue),
     }
 
 
