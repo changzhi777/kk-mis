@@ -139,3 +139,86 @@ async def by_month(
     items = [{"balance": m["income"] - m["expense"], **m} for m in months.values()]
     items.sort(key=lambda x: x["month"])
     return {"items": items}
+
+
+@router.get("/trial-balance")
+async def trial_balance(
+    session: AsyncSession = Depends(get_session),
+    _=Depends(require_permission("finance:report:view")),
+):
+    """试算平衡表：各账户借贷余额汇总（Σ借应等于Σ贷，复式记账核心校验）。"""
+    accounts = (
+        await session.execute(
+            select(FinanceAccount).where(FinanceAccount.code.is_not(None)).order_by(FinanceAccount.code)
+        )
+    ).scalars().all()
+    items = []
+    total_d = Decimal("0")
+    total_c = Decimal("0")
+    for a in accounts:
+        bal = a.balance or Decimal("0")
+        if bal >= 0:  # 借方余额
+            items.append({"code": a.code, "name": a.name, "account_type": a.account_type, "debit": float(bal), "credit": 0.0})
+            total_d += bal
+        else:
+            items.append({"code": a.code, "name": a.name, "account_type": a.account_type, "debit": 0.0, "credit": float(-bal)})
+            total_c += -bal
+    return {
+        "items": items,
+        "total_debit": float(total_d),
+        "total_credit": float(total_c),
+        "balanced": total_d == total_c,
+    }
+
+
+@router.get("/balance-sheet")
+async def balance_sheet(
+    session: AsyncSession = Depends(get_session),
+    _=Depends(require_permission("finance:report:view")),
+):
+    """资产负债表：资产 = 负债 + 权益（会计第一恒等式）。"""
+    accounts = (
+        await session.execute(select(FinanceAccount).where(FinanceAccount.code.is_not(None)))
+    ).scalars().all()
+    assets = Decimal("0")
+    liabilities = Decimal("0")
+    equity = Decimal("0")
+    for a in accounts:
+        bal = a.balance or Decimal("0")
+        if a.account_type == "asset":
+            assets += bal  # 借方余额
+        elif a.account_type == "liability":
+            liabilities += -bal  # 贷方余额（balance 负）
+        elif a.account_type == "equity":
+            equity += -bal
+    return {
+        "assets": float(assets),
+        "liabilities": float(liabilities),
+        "equity": float(equity),
+        "balanced": assets == liabilities + equity,
+    }
+
+
+@router.get("/income-statement")
+async def income_statement(
+    session: AsyncSession = Depends(get_session),
+    _=Depends(require_permission("finance:report:view")),
+):
+    """利润表：收入 − 支出 = 利润。"""
+    accounts = (
+        await session.execute(select(FinanceAccount).where(FinanceAccount.code.is_not(None)))
+    ).scalars().all()
+    revenue = Decimal("0")
+    expense = Decimal("0")
+    for a in accounts:
+        bal = a.balance or Decimal("0")
+        if a.account_type == "revenue":
+            revenue += -bal  # 贷方余额
+        elif a.account_type == "expense":
+            expense += bal  # 借方余额
+    profit = revenue - expense
+    return {
+        "revenue": float(revenue),
+        "expense": float(expense),
+        "profit": float(profit),
+    }
