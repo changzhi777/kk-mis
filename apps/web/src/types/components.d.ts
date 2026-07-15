@@ -75,6 +75,8 @@ declare module 'vue' {
     StatusTag: typeof import('./../components/StatusTag.vue')['default']
     ThemeToggle: typeof import('./../components/ThemeToggle.vue')['default']
     TimeText: typeof import('./../components/TimeText.vue')['default']
+    UniverSheet: typeof import('./../components/UniverSheet.vue')['default']
+    VoucherPrint: typeof import('./../components/VoucherPrint.vue')['default']
   }
   export interface GlobalDirectives {
     vLoading: typeof import('element-plus/es')['ElLoadingDirective']
