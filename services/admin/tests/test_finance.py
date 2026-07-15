@@ -229,3 +229,35 @@ def test_report_by_account(client, auth_header):
     assert target["income"] >= 800.0
     assert target["expense"] >= 300.0
     assert target["balance"] == target["income"] - target["expense"]
+
+
+def test_report_by_month(client, auth_header):
+    """by-month 按月聚合（趋势图数据源，跨 DB 用 Python 聚合）。"""
+    h = auth_header
+    acc = client.post(
+        "/admin/api/v1/finance/accounts",
+        json={"name": "byMonth", "type": "bank", "balance": 0},
+        headers=h,
+    ).json()
+    cat_in = client.post(
+        "/admin/api/v1/finance/categories",
+        json={"name": "byM收入", "type": "income"},
+        headers=h,
+    ).json()
+    client.post(
+        "/admin/api/v1/finance/transactions",
+        json={"account_id": acc["id"], "category_id": cat_in["id"],
+              "type": "income", "amount": 500, "transaction_date": "2026-07-12"},
+        headers=h,
+    )
+    client.post(
+        "/admin/api/v1/finance/transactions",
+        json={"account_id": acc["id"], "category_id": cat_in["id"],
+              "type": "income", "amount": 300, "transaction_date": "2026-06-10"},
+        headers=h,
+    )
+    r = client.get("/admin/api/v1/finance/reports/by-month", headers=h)
+    assert r.status_code == 200
+    items = r.json()["items"]
+    months = {it["month"] for it in items}
+    assert "2026-06" in months and "2026-07" in months

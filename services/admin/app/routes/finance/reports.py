@@ -107,3 +107,35 @@ async def by_account(
             accs[aid]["expense"] += float(amt or 0)
     items = [{"balance": a["income"] - a["expense"], **a} for a in accs.values()]
     return {"items": items}
+
+
+@router.get("/by-month")
+async def by_month(
+    start_date: datetime = Query(None),
+    end_date: datetime = Query(None),
+    session: AsyncSession = Depends(get_session),
+    _=Depends(require_permission("finance:report:view")),
+):
+    """按月聚合收入/支出（趋势图数据源，跨 DB 用 Python 聚合避开 strftime/extract 差异）"""
+    stmt = select(
+        FinanceTransaction.type,
+        FinanceTransaction.transaction_date,
+        FinanceTransaction.amount,
+    )
+    if start_date:
+        stmt = stmt.where(FinanceTransaction.transaction_date >= start_date)
+    if end_date:
+        stmt = stmt.where(FinanceTransaction.transaction_date <= end_date)
+    rows = (await session.execute(stmt)).all()
+    months: dict[str, dict] = {}
+    for t, d, amt in rows:
+        ym = d.strftime("%Y-%m") if d else "unknown"
+        if ym not in months:
+            months[ym] = {"month": ym, "income": 0.0, "expense": 0.0}
+        if t == "income":
+            months[ym]["income"] += float(amt or 0)
+        else:
+            months[ym]["expense"] += float(amt or 0)
+    items = [{"balance": m["income"] - m["expense"], **m} for m in months.values()]
+    items.sort(key=lambda x: x["month"])
+    return {"items": items}
