@@ -167,6 +167,23 @@ export const adminApi = {
     const { data } = await http.get('/api/v1/finance/reports/income-statement')
     return data as { revenue: number; expense: number; profit: number }
   },
+  // A3 代理提现
+  async withdrawalBalance() {
+    const { data } = await http.get('/api/v1/agent/withdrawals/balance')
+    return data as { settled: number; pending: number; available: number }
+  },
+  async listWithdrawals() {
+    const { data } = await http.get('/api/v1/agent/withdrawals')
+    return data.items as { id: number; amount: number; status: string; bank_info: string; reviewed_at: string | null; created_at: string }[]
+  },
+  async requestWithdrawal(amount: number, bankInfo: string) {
+    const { data } = await http.post('/api/v1/agent/withdrawals', { amount, bank_info: bankInfo })
+    return data as { id: number; status: string; amount: number }
+  },
+  async reviewWithdrawal(id: number, action: 'approve' | 'reject') {
+    const { data } = await http.put(`/api/v1/agent/withdrawals/${id}/review`, { action })
+    return data as { id: number; status: string }
+  },
   // 资产专用
   async generateCards(batchId: number, quantity: number) {
     const { data } = await http.post(`/api/v1/asset/batches/${batchId}/generate`, { quantity })

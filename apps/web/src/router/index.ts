@@ -233,6 +233,12 @@ const router = createRouter({
       meta: { title: '分润报表', group: 'agent', permission: 'agent:commission:view' },
     },
     {
+      path: '/agent/withdrawal',
+      name: 'agent-withdrawal',
+      component: () => import('@/views/agent/WithdrawalView.vue'),
+      meta: { title: '代理提现', group: 'agent', permission: 'agent:commission:view' },
+    },
+    {
       path: '/agent/dashboard',
       name: 'agent-dashboard',
       component: () => import('@/views/agent/AgentDashboard.vue'),
