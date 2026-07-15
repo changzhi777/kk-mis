@@ -42,7 +42,7 @@ from .enterprise import (
     role_permissions,
     user_roles,
 )
-from .finance import FinanceAccount, FinanceCategory, FinanceTransaction
+from .finance import FinanceAccount, FinanceCategory, FinanceTransaction, JournalEntry, Voucher
 
 __all__ = [
     "Base",
@@ -55,6 +55,8 @@ __all__ = [
     "FinanceAccount",
     "FinanceCategory",
     "FinanceTransaction",
+    "JournalEntry",
+    "Voucher",
     "AssetCardType",
     "AssetCardBatch",
     "AssetCard",

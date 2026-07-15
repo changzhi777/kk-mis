@@ -8,6 +8,7 @@ from .config import settings
 from .models import (
     Agent,
     ApprovalFlow,
+    FinanceAccount,
     FinanceCategory,
     Permission,
     Role,
@@ -118,6 +119,28 @@ _DEFAULT_CATEGORIES = [
     ("expense", "办公费用", "expense_office"),
     ("expense", "差旅费用", "expense_travel"),
     ("expense", "其他支出", "expense_other"),
+]
+
+# 默认复式会计科目（5 大类标准科目，2026-07-15 复式改造）
+# (code, name, account_type, balance_direction)
+_DEFAULT_LEDGER_ACCOUNTS = [
+    # 资产（借方）
+    ("1001", "库存现金", "asset", "debit"),
+    ("1002", "银行存款", "asset", "debit"),
+    ("1012", "应收账款", "asset", "debit"),
+    # 负债（贷方）
+    ("2001", "应付账款", "liability", "credit"),
+    ("2202", "预收账款", "liability", "credit"),
+    # 权益（贷方）
+    ("4001", "实收资本", "equity", "credit"),
+    ("4103", "本年利润", "equity", "credit"),
+    # 收入（贷方）
+    ("5001", "主营业务收入", "revenue", "credit"),
+    ("5051", "其他业务收入", "revenue", "credit"),
+    # 支出（借方）
+    ("6001", "主营业务成本", "expense", "debit"),
+    ("6602", "管理费用", "expense", "debit"),
+    ("6601", "销售费用", "expense", "debit"),
 ]
 
 # 普通员工角色（注册用户默认）可见的菜单权限码
@@ -343,6 +366,19 @@ async def seed_initial_data():
             ).scalar_one_or_none()
             if not exists:
                 s.add(FinanceCategory(name=name, type=ctype, code=code, status=True, sort=0))
+                changed = True
+
+        # 4.1 默认复式会计科目（5 大类，2026-07-15 复式改造）
+        for code, name, atype, direction in _DEFAULT_LEDGER_ACCOUNTS:
+            exists = (
+                await s.execute(select(FinanceAccount).where(FinanceAccount.code == code))
+            ).scalar_one_or_none()
+            if not exists:
+                s.add(FinanceAccount(
+                    code=code, name=name, type="cash",  # type 资金子类型（复式用 account_type）
+                    account_type=atype, balance_direction=direction,
+                    is_leaf=True, status=True, sort=0,
+                ))
                 changed = True
 
         # 5. 默认年度返佣阶梯（决策 #3 重构 2026-07-13）
