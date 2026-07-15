@@ -14,3 +14,10 @@ httpx>=0.28  # OAuth 第三方登录（GitHub/微信 API 调用）
 # Sprint 0 默认 local backend，无需此依赖；切 cos 后 `pip install cos-python-sdk-v5`
 cos-python-sdk-v5>=1.9.0   # 用于 cos-python-sdk-v5 COS S3-兼容客户端
 prometheus_client>=0.20
+
+# === P0 CMS 真支付 2026-07-15 ===
+alembic>=1.13.0
+# 微信支付 v3 验签/解密（生产用）
+wechatpayv3>=1.0.0      # 微信支付 v3 SDK（RSA + AES-GCM）
+pycryptodome>=3.18.0    # AES-256-GCM 解密（兜底 SDK 缺）
+cryptography>=41.0.0    # RSA 验签 + 平台证书管理

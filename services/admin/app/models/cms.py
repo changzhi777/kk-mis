@@ -20,6 +20,7 @@ from sqlalchemy import (
     String,
     Text,
 )
+from sqlalchemy.ext.hybrid import hybrid_property
 
 from ..utils import utcnow
 from .base import Base
@@ -160,6 +161,29 @@ class ProductOrder(Base):
 
     下单时锁定单价（取自 product.pass_config.face_value），支付成功标记 paid。
     不自动发真实 asset 卡（订单记录，运营后续发卡，避免接 asset 发卡流程的复杂性）。
+
+    === P0 CMS 真支付 状态机迁移（2026-07-15，详见 docs/cms-payments-webhook-p0.md）===
+
+    **status 字段（NEW）**：7 状态机
+        pending            下单后未支付
+        paid               支付成功（fact only，履约未开始）
+        card_issuing       履约中（发卡进行中）
+        fulfilled          履约完成（卡已发到买家）
+        failed             履约失败（发卡异常，待人工）
+        cancelled          订单取消（用户/运营取消）
+        refunded           已退款
+
+    **pay_status 字段（LEGACY）**：保留兼容窗口
+        pending|paid|cancelled
+        ⚠️ 不再写入。保留字段直到 2026-09 前端全部切读 `status` 后由 Day 1.2 后期
+        单独 migration 移除（约 2-3 个月窗口）。
+
+    **effective_status 属性**：API 响应统一返回新 status；历史客户端按
+        pay_status 读数据时可平滑过渡。回退映射：pending→pending,
+        paid→paid, cancelled→cancelled。
+
+    **is_paid 属性**：用于业务判断"是否已支付事实"，覆盖 paid/issuing/fulfilled/
+        failed/refunded（即一切 post-paid 状态）。
     """
 
     __tablename__ = "cms_product_order"
@@ -176,7 +200,10 @@ class ProductOrder(Base):
     buyer_name = Column(String(50), nullable=False)
     buyer_phone = Column(String(30), nullable=False)
     remark = Column(Text, nullable=True)
-    pay_status = Column(String(20), default="pending", nullable=False, index=True)  # pending|paid|cancelled
+    # ── LEGACY 字段（兼容窗口保留，不再写入，2026-09 移除） ──
+    pay_status = Column(String(20), default="pending", nullable=False, index=True)  # LEGACY: pending|paid|cancelled
+    # ── NEW 字段（P0 Day 1.2.1 引入） ──
+    status = Column(String(20), default="pending", nullable=True, index=True)  # NEW: pending|paid|card_issuing|fulfilled|failed|cancelled|refunded
     referrer_agent_id = Column(BigInteger, nullable=True, index=True)  # A2 推荐代理（来自推广码）
     referral_commission = Column(Numeric(12, 2), default=0)  # A2 推荐返佣（total * 5%）
     paid_at = Column(DateTime, nullable=True)
@@ -184,6 +211,35 @@ class ProductOrder(Base):
     issued_card_password = Column(String(10), nullable=True)  # 卡密码（明文一次性）
     transaction_id = Column(String(100), nullable=True)  # 支付网关交易号
     created_at = Column(DateTime, default=utcnow)
+
+    @hybrid_property
+    def effective_status(self) -> str:
+        """API 兼容：返回新的 status 字段；旧 pay_status 客户端平滑过渡。
+
+        优先级：status 优先 → fallback 到 pay_status 映射 → 默认 'pending'。
+        """
+        status = getattr(self, "status", None)
+        if status:
+            return status
+        # LEGACY fallback
+        mapping = {
+            "pending": "pending",
+            "paid": "paid",
+            "cancelled": "cancelled",
+        }
+        return mapping.get(self.pay_status, "pending")
+
+    @hybrid_property
+    def is_paid(self) -> bool:
+        """True if order has been paid (any post-paid state).
+
+        用于业务判断"是否已支付事实"，覆盖：
+        paid / card_issuing / fulfilled / failed / refunded
+        （pending / cancelled 不算 paid）
+        """
+        return self.effective_status in (
+            "paid", "card_issuing", "fulfilled", "failed", "refunded",
+        )
 
 
 class Coupon(Base):
