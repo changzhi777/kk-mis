@@ -22,9 +22,10 @@
           <el-tag size="small" :type="row.status === 'posted' ? 'success' : 'info'">{{ row.status === 'posted' ? '已过账' : '草稿' }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="80">
+      <el-table-column label="操作" width="120">
         <template #default="{ row }">
           <el-button v-if="row.status === 'draft'" link type="primary" @click="post(row.id)">过账</el-button>
+          <el-button link type="primary" @click="print(row)">打印</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -65,6 +66,8 @@
         <el-button type="primary" :disabled="!balanced" @click="save">保存</el-button>
       </template>
     </el-dialog>
+
+    <VoucherPrint v-model="printVisible" :voucher="printVoucher" :accounts="accounts" />
   </el-card>
 </template>
 
@@ -72,6 +75,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import adminApi, { getApiError, http } from '@/api/admin'
+import VoucherPrint from '@/components/VoucherPrint.vue'
 
 const items = ref<{ id: number; number: string; voucher_date: string; status: string; entries: { account_id: number; debit: number; credit: number }[] }[]>([])
 const accounts = ref<{ id: number; name: string }[]>([])
@@ -130,6 +134,15 @@ async function post(id: number) {
   } catch (e: unknown) {
     ElMessage.error(getApiError(e, '过账失败'))
   }
+}
+
+// 打印凭证
+const printVoucher = ref<{ id: number; number: string; voucher_date: string; summary: string; entries: { account_id: number; debit: number; credit: number }[] } | null>(null)
+const printVisible = ref(false)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function print(row: any) {
+  printVoucher.value = row
+  printVisible.value = true
 }
 
 onMounted(load)

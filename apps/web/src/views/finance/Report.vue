@@ -1,6 +1,7 @@
 <template>
   <div class="report-page">
     <el-card shadow="never" class="filter-card">
+      <el-button type="primary" size="small" class="no-print" @click="doPrint">🖨 打印报表</el-button>
       <el-date-picker
         v-model="dateRange"
         type="daterange"
@@ -152,6 +153,10 @@ function onResize() {
   monthChart?.resize()
 }
 
+function doPrint() {
+  window.print()
+}
+
 onMounted(async () => {
   await load()
   await nextTick()
@@ -178,4 +183,10 @@ onBeforeUnmount(() => {
 .stat-card.balance .stat-value { color: var(--el-color-primary); }
 .card-title { font-weight: 600; color: var(--el-text-color-primary); }
 .chart { height: 320px; }
+@media print {
+  .no-print, .filter-card { display: none !important; }
+  .report-page { gap: 8px; }
+  .chart { height: 260px; page-break-inside: avoid; }
+  @page { size: A4; margin: 1.5cm; }
+}
 </style>
