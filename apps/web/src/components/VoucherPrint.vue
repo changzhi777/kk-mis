@@ -72,7 +72,10 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ 'update:modelValue': [v: boolean] }>()
 
-const visible = ref(props.modelValue)
+const visible = computed({
+  get: () => props.modelValue,
+  set: (v: boolean) => emit('update:modelValue', v),
+})
 const printArea = ref<HTMLElement | null>(null)
 
 const entries = computed(() => props.voucher?.entries || [])
