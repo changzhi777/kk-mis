@@ -124,11 +124,23 @@ async def list_vouchers(
     if status:
         stmt = stmt.where(Voucher.status == status)
     vouchers = (await session.execute(stmt.order_by(Voucher.id.desc()))).scalars().all()
+    # 批量查分录（避免 N+1，2026-07-15 优化）
+    vids = [v.id for v in vouchers]
+    all_entries = (
+        (
+            await session.execute(
+                select(JournalEntry).where(JournalEntry.voucher_id.in_(vids))
+            )
+        ).scalars().all()
+        if vids
+        else []
+    )
+    by_voucher: dict[int, list] = {}
+    for e in all_entries:
+        by_voucher.setdefault(e.voucher_id, []).append(e)
     result = []
     for v in vouchers:
-        entries = (
-            await session.execute(select(JournalEntry).where(JournalEntry.voucher_id == v.id))
-        ).scalars().all()
+        entries = by_voucher.get(v.id, [])
         result.append({
             "id": v.id,
             "number": v.number,

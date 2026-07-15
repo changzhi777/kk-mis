@@ -3,6 +3,7 @@ from ..utils import utcnow
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -213,13 +214,20 @@ async def get_preferences(user: User = Depends(get_current_user)):
     return user.preferences or {}
 
 
+class PreferencesUpdate(BaseModel):
+    """用户偏好更新（部分字段，None 不覆盖）。"""
+
+    dashboard_order: list[str] | None = None
+
+
 @router.put("/preferences")
 async def update_preferences(
-    body: dict,
+    body: PreferencesUpdate,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    """更新用户偏好（body 合并覆盖）。"""
-    user.preferences = {**(user.preferences or {}), **body}
+    """更新用户偏好（非 None 字段合并覆盖）。"""
+    data = body.model_dump(exclude_none=True)
+    user.preferences = {**(user.preferences or {}), **data}
     await session.commit()
     return {"success": True, "preferences": user.preferences}
