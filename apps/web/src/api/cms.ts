@@ -354,6 +354,7 @@ export const cmsApi = {
     product_id: number
     quantity: number
     coupon_code?: string
+    promo_code?: string
     buyer_name: string
     buyer_phone: string
     remark?: string

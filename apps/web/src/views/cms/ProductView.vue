@@ -186,6 +186,9 @@
           <el-form-item label="优惠券码">
             <div class="row-line">
               <el-input v-model="buyForm.coupon_code" placeholder="选填" @change="recalc" />
+          </el-form-item>
+          <el-form-item label="推广码">
+            <el-input v-model="buyForm.promo_code" placeholder="选填，代理推广码（享推荐关联）" />
               <el-button link type="primary" @click="recalc">应用</el-button>
             </div>
           </el-form-item>
@@ -309,7 +312,7 @@ function consult() {
     leadDialog.value = true
   } else {
     // 权益卡购买预填
-    Object.assign(buyForm, { quantity: 1, coupon_code: '', buyer_name: name, buyer_phone: phone })
+    Object.assign(buyForm, { quantity: 1, coupon_code: '', promo_code: '', buyer_name: name, buyer_phone: phone })
     createdOrder.value = null
     discountVal.value = 0
     buyDialog.value = true
@@ -378,7 +381,7 @@ const creating = ref(false)
 const paying = ref(false)
 const discountVal = ref(0)
 const createdOrder = ref<ProductOrder | null>(null)
-const buyForm = reactive({ quantity: 1, coupon_code: '', buyer_name: '', buyer_phone: '' })
+const buyForm = reactive({ quantity: 1, coupon_code: '', promo_code: '', buyer_name: '', buyer_phone: '' })
 
 async function recalc() {
   discountVal.value = 0
@@ -406,6 +409,7 @@ async function createOrd() {
       product_id: p.value?.id as number,
       quantity: buyForm.quantity,
       coupon_code: buyForm.coupon_code || undefined,
+      promo_code: buyForm.promo_code || undefined,
       buyer_name: buyForm.buyer_name,
       buyer_phone: buyForm.buyer_phone,
     })
