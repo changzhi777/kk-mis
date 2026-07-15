@@ -13,6 +13,15 @@ from ...models import FinanceAccount, FinanceCategory, FinanceTransaction
 router = APIRouter(prefix="/api/v1/finance/reports", tags=["finance-report"])
 
 
+async def _ledger_accounts(session: AsyncSession) -> list:
+    """取所有标准科目（含 code，复式 3 报表共用，DRY）。"""
+    return (
+        await session.execute(
+            select(FinanceAccount).where(FinanceAccount.code.is_not(None))
+        )
+    ).scalars().all()
+
+
 @router.get("/summary")
 async def summary(
     start_date: datetime = Query(None),
@@ -147,11 +156,7 @@ async def trial_balance(
     _=Depends(require_permission("finance:report:view")),
 ):
     """试算平衡表：各账户借贷余额汇总（Σ借应等于Σ贷，复式记账核心校验）。"""
-    accounts = (
-        await session.execute(
-            select(FinanceAccount).where(FinanceAccount.code.is_not(None)).order_by(FinanceAccount.code)
-        )
-    ).scalars().all()
+    accounts = sorted(await _ledger_accounts(session), key=lambda a: a.code or "")
     items = []
     total_d = Decimal("0")
     total_c = Decimal("0")
@@ -177,9 +182,7 @@ async def balance_sheet(
     _=Depends(require_permission("finance:report:view")),
 ):
     """资产负债表：资产 = 负债 + 权益（会计第一恒等式）。"""
-    accounts = (
-        await session.execute(select(FinanceAccount).where(FinanceAccount.code.is_not(None)))
-    ).scalars().all()
+    accounts = await _ledger_accounts(session)
     assets = Decimal("0")
     liabilities = Decimal("0")
     equity = Decimal("0")
@@ -215,9 +218,7 @@ async def income_statement(
     _=Depends(require_permission("finance:report:view")),
 ):
     """利润表：收入 − 支出 = 利润。"""
-    accounts = (
-        await session.execute(select(FinanceAccount).where(FinanceAccount.code.is_not(None)))
-    ).scalars().all()
+    accounts = await _ledger_accounts(session)
     revenue = Decimal("0")
     expense = Decimal("0")
     for a in accounts:
