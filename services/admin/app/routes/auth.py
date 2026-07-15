@@ -163,8 +163,17 @@ async def my_menus(
         )
     ).scalars().all()
 
-    # 用户可见的 menu code（admin 通配 = 全部）
-    visible_codes = None if user.username == "admin" else set(
+    # 用户可见的 menu code（super_admin 角色通配 = 全部，2026-07-15 修 username 硬编码）
+    role_codes_set = set(
+        (
+            await session.execute(
+                select(Role.code)
+                .join(user_roles, user_roles.c.role_id == Role.id)
+                .where(user_roles.c.user_id == user.id)
+            )
+        ).scalars().all()
+    )
+    visible_codes = None if "super_admin" in role_codes_set else set(
         await get_user_permissions(user.id, session)
     )
 
