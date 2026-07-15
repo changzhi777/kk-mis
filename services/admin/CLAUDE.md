@@ -871,4 +871,612 @@ draft ⇄ published ⇄ archived    → 路由未限制迁移方向
 
 
 - **`cms-content-module-research.md`**（🆕，`mis-system/docs/` 下）— CMS 架构决策与设计文档
+
+---
+
+### §7.19 P0 Day 1.1 alembic migration 详解（`alembic/versions/20260715_cms_payment_webhook_p0.py` · 草案）
+
+> ⚠️ **当前状态**：admin 服务**尚未启用 alembic**（仓库内无 `alembic/` 目录）。本节是 P0 Day 1.1 实施产物的**设计草案**，落到代码时需先 `alembic init alembic` + 配 `env.py` 指向 `Base.metadata`，再落本文件。下方 SQL 是兼容 SQLite（开发）与 PostgreSQL（生产）的版本；ENUM 在 SQLite 退化为 `VARCHAR + CHECK`。
+
+#### 迁移文件骨架
+
+```python
+# mis-system/services/admin/alembic/versions/20260715_cms_payment_webhook_p0.py
+"""P0 CMS 支付 webhook 与多卡履约迁移
+
+Revision ID: 20260715_cms_payment_webhook_p0
+Revises: <head>  # 由 alembic 当时实际 head 替换
+Create Date: 2026-07-15 14:00:00
+"""
+from alembic import op
+import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
+
+revision = "20260715_cms_payment_webhook_p0"
+down_revision = None  # 实跑前查 alembic_version 表填入真 head
+branch_labels = ("cms-p0",)
+depends_on = None
+
+
+def upgrade() -> None:
+    # 1) ProductOrder 状态机迁移：order_no / status / provider
+    op.add_column("cms_product_order", sa.Column("order_no", sa.String(40), nullable=True))
+    op.add_column("cms_product_order", sa.Column("status", sa.String(20), nullable=True))
+    op.add_column("cms_product_order", sa.Column("provider", sa.String(20), nullable=True))
+    op.add_column("cms_product_order", sa.Column("paid_at", sa.DateTime(), nullable=True))
+    op.create_index("ix_cms_order_order_no", "cms_product_order", ["order_no"], unique=True)
+    # 历史数据回填：旧 id 转 order_no（旧字段 pay_status → status 映射见 P0 §3.3.3）
+    op.execute("UPDATE cms_product_order SET order_no = 'LEGACY-' || id WHERE order_no IS NULL")
+    op.execute("""
+        UPDATE cms_product_order SET status =
+          CASE pay_status
+            WHEN 'pending' THEN 'pending'
+            WHEN 'cancelled' THEN 'cancelled'
+            WHEN 'paid' THEN CASE WHEN issued_card_no IS NOT NULL THEN 'fulfilled' ELSE 'paid' END
+            ELSE 'pending'
+          END
+        WHERE status IS NULL
+    """)
+    op.alter_column("cms_product_order", "order_no", nullable=False)
+    op.alter_column("cms_product_order", "status", nullable=False)
+    # 复合唯一：(provider, transaction_id) 仅在 transaction_id 非空时生效
+    op.create_index(
+        "uq_cms_order_provider_txn", "cms_product_order",
+        ["provider", "transaction_id"], unique=True,
+        postgresql_where=sa.text("transaction_id IS NOT NULL"),
+    )
+
+    # 2) cms_payment_idempotency（事件幂等闸门）
+    op.create_table(
+        "cms_payment_idempotency",
+        sa.Column("id", sa.BigInteger(), primary_key=True),
+        sa.Column("provider", sa.String(20), nullable=False),
+        sa.Column("event_id", sa.String(80), nullable=False),
+        sa.Column("event_type", sa.String(64), nullable=False),
+        sa.Column("transaction_id", sa.String(100), nullable=False),
+        sa.Column("order_id", sa.BigInteger(), sa.ForeignKey("cms_product_order.id"), nullable=True),
+        sa.Column("amount_fen", sa.BigInteger(), nullable=False),
+        sa.Column("currency", sa.String(8), server_default="CNY", nullable=False),
+        sa.Column("payload_hash", sa.String(64), nullable=False),
+        sa.Column("status", sa.String(20), server_default="processing", nullable=False),
+        sa.Column("attempt_count", sa.Integer(), server_default="1", nullable=False),
+        sa.Column("last_error", sa.String(500), nullable=True),
+        sa.Column("received_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
+        sa.Column("processed_at", sa.DateTime(), nullable=True),
+        sa.UniqueConstraint("provider", "event_id", name="uq_cms_pay_event"),
+        sa.UniqueConstraint("provider", "transaction_id", name="uq_cms_pay_transaction"),
+    )
+    op.create_index("ix_cms_pay_order", "cms_payment_idempotency", ["order_id"])
+
+    # 3) cms_payment_retry_queue（持久化发卡任务 + 租约恢复）
+    op.create_table(
+        "cms_payment_retry_queue",
+        sa.Column("id", sa.BigInteger(), primary_key=True),
+        sa.Column("order_id", sa.BigInteger(), sa.ForeignKey("cms_product_order.id"), nullable=False),
+        sa.Column("job_type", sa.String(32), server_default="issue_cards", nullable=False),
+        sa.Column("status", sa.String(20), server_default="pending", nullable=False),
+        sa.Column("attempts", sa.Integer(), server_default="0", nullable=False),
+        sa.Column("max_attempts", sa.Integer(), server_default="5", nullable=False),
+        sa.Column("next_retry_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
+        sa.Column("locked_at", sa.DateTime(), nullable=True),
+        sa.Column("locked_by", sa.String(80), nullable=True),
+        sa.Column("last_error", sa.String(500), nullable=True),
+        sa.Column("completed_at", sa.DateTime(), nullable=True),
+        sa.Column("created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
+        sa.UniqueConstraint("order_id", "job_type", name="uq_cms_payment_retry_job"),
+    )
+    op.create_index("ix_cms_retry_due", "cms_payment_retry_queue", ["status", "next_retry_at"])
+
+    # 4) cms_order_card（多件订单，每张卡独立幂等）
+    op.create_table(
+        "cms_order_card",
+        sa.Column("id", sa.BigInteger(), primary_key=True),
+        sa.Column("order_id", sa.BigInteger(), sa.ForeignKey("cms_product_order.id"), nullable=False),
+        sa.Column("item_no", sa.Integer(), nullable=False),
+        sa.Column("asset_card_id", sa.BigInteger(), sa.ForeignKey("asset_card.id"), nullable=False),
+        sa.Column("card_no", sa.String(32), nullable=False),
+        sa.Column("credential_ciphertext", sa.Text(), nullable=False),
+        sa.Column("status", sa.String(20), server_default="issued", nullable=False),
+        sa.Column("issued_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
+        sa.Column("created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
+        sa.UniqueConstraint("order_id", "item_no", name="uq_cms_order_card_item"),
+        sa.UniqueConstraint("asset_card_id", name="uq_cms_order_card_asset"),
+    )
+    op.create_index("ix_cms_order_card_order", "cms_order_card", ["order_id"])
+
+    # 5) ReferralCommission 唯一约束补齐（防重复返佣）
+    op.create_unique_constraint(
+        "uq_referral_commission_order", "referral_commission", ["product_order_id"]
+    )
+
+
+def downgrade() -> None:
+    # 严格反向；P0 上线后只在确认无真实交易时执行
+    op.drop_constraint("uq_referral_commission_order", "referral_commission", type_="unique")
+    op.drop_index("ix_cms_order_card_order", table_name="cms_order_card")
+    op.drop_table("cms_order_card")
+    op.drop_index("ix_cms_retry_due", table_name="cms_payment_retry_queue")
+    op.drop_table("cms_payment_retry_queue")
+    op.drop_index("ix_cms_pay_order", table_name="cms_payment_idempotency")
+    op.drop_table("cms_payment_idempotency")
+    op.drop_index("uq_cms_order_provider_txn", table_name="cms_product_order")
+    op.drop_index("ix_cms_order_order_no", table_name="cms_product_order")
+    op.drop_column("cms_product_order", "provider")
+    op.drop_column("cms_product_order", "paid_at")
+    op.drop_column("cms_product_order", "status")
+    op.drop_column("cms_product_order", "order_no")
+```
+
+#### 关键设计取舍
+
+| 项 | 决策 | 原因 |
+|----|------|------|
+| 主键 `BigInteger` | SQLite/PG 共用 + `with_variant(Integer, "sqlite")` | 单仓多 DB 兼容，admin 既有表风格 |
+| `order_no` 生成 | 前缀 `LEGACY-` + 旧 id（迁移）；新订单 ULID/雪花 | 历史订单无 order_no，迁移可重复；新订单外部可见、不可猜 |
+| `(provider, transaction_id)` 部分唯一索引 | `transaction_id IS NOT NULL`（PG）；SQLite 退化为全唯一 | mock 模式 `transaction_id` 为空，不应阻挡 unique |
+| `credential_ciphertext` | `TEXT` 存 AES-256-GCM 密文，`CARD_CREDENTIAL_KEY` 独立 secret | 拒绝明文卡密码落库；密钥不进日志、不进 Git |
+| `referral_commission.product_order_id` 唯一 | 防止并发回调重复返佣 | P0 缺口二幂等边界硬要求 |
+| `cms_payment_retry_queue` 任务表 | 独立表（不入 cms_product_order） | 任务独立状态机、租约、重试次数，便于 poller + 多实例 |
+| `ENUM` | **PG 原生 ENUM / SQLite VARCHAR+CHECK** | 单仓双 DB 兼容；ORM 模型用 `String + validators` 抽象 |
+
+#### 落库前 checklist
+
+1. 先在 PG 临时库跑一遍：迁移 → 灌 100 行历史数据（含 `pay_status=paid + quantity=3`）→ 验证回填 + 唯一约束；
+2. SQLite 内存库跑一遍：迁移 + 反向迁移 + 再次正向迁移，确认幂等；
+3. PG 部分唯一索引的 `postgresql_where` 在 SQLite 上静默忽略，需在 ORM 模型 `__table_args__` 里手工指定；
+4. 真实落 alembic 前先 `alembic init alembic` + `env.py` 配 `target_metadata = Base.metadata`，否则 `op.create_table` 找不到外键目标。
+
+---
+
+### §7.20 发卡服务抽离方案（`services/payment_fulfillment.py` · 新建）
+
+#### 现状
+
+`routes/cms/orders.py::_issue_card`（第 97-130 行）是模块内**私有函数**，当前被 `pay_order` 同步调用一次，行为简朴：
+
+```python
+async def _issue_card(session, card_type_id) -> tuple[str, str] | None:
+    """从 card_type 找 active batch，生成 1 张卡，返回 (card_no, password) 明文"""
+    batch = (await session.execute(
+        select(AssetCardBatch)
+        .where(AssetCardBatch.type_id == card_type_id, AssetCardBatch.status.in_(["draft", "active"]))
+        .order_by(AssetCardBatch.id.desc())
+    )).scalars().first()
+    if not batch: return None
+    type_ = await session.get(AssetCardType, card_type_id)
+    card_no = "".join(secrets.choice(string.digits) for _ in range(16))
+    password = "".join(secrets.choice(string.digits) for _ in range(6))
+    unique_code = secrets.token_hex(32)
+    base_url = os.getenv("ANTICOUNTERFEIT_BASE_URL", "https://aisport.tech/oa/verify")
+    session.add(AssetCard(batch_id=batch.id, type_id=card_type_id,
+        card_no=card_no, unique_code=unique_code,
+        blockchain_tx_hash=uuid.uuid4().hex,
+        qr_url=f"{base_url}/{unique_code}",
+        password_hash=hash_password(password),
+        face_value=type_.face_value if type_ else 0,
+        unit_price=type_.unit_price if type_ else 0, status="issued"))
+    batch.generated = (batch.generated or 0) + 1
+    if batch.status == "draft": batch.status = "active"
+    return card_no, password
+```
+
+#### P0 阶段缺口（与 P0 方案文档 §3.4.5 对齐）
+
+1. **数量只 1 张**：`pay_order` 调用一次即 1 张；`quantity=3` 订单只发首张，剩余差额无痕迹；
+2. **无行锁**：并发调用同一 batch 可超卖（`generated` 累加无原子保护）；
+3. **批次挑选固定按 `id DESC`**：可能挑到旧 draft；应过滤 `status=active` 且 `quantity - generated >= 缺卡数`；
+4. **卡密码明文返回**：调用方收到 `(card_no, password)` 直接落 `ProductOrder.issued_card_password` 单值字段，多卡场景无法落地；
+5. **无审计 / 无重试**：发卡异常回滚整笔支付事务，与 P0 缺口四"支付事实与履约分层"原则冲突；
+6. **无库存预占**：扣减 `batch.generated` 在事务末尾，并发提交下理论可超过 `quantity`。
+
+#### 抽离设计：领域服务 `payment_fulfillment.py`
+
+```
+mis-system/services/admin/app/services/payment_fulfillment.py  ← 新建
+├─ confirm_payment(session, notification)        # 缺口三：幂等支付确认
+├─ issue_order_cards(session, order_id)          # 缺口四：多卡履约
+├─ claim_due_jobs(session, limit, worker_id)     # 缺口四：DB poller
+└─ _pick_batch_with_stock(session, type_id, need)  # 缺口四：行锁 + 库存校验
+```
+
+#### `issue_order_cards` 设计要点
+
+```python
+async def issue_order_cards(session: AsyncSession, order_id: int) -> int:
+    """为订单补发缺失 item_no 的卡，返回本次新增数量。
+
+    事务边界：
+    1. 锁订单 FOR UPDATE（SQLite 退化为 BEGIN IMMEDIATE）
+    2. 校验 status ∈ {paid, issuing, fulfillment_failed}
+    3. 已发 OrderCard.item_no 集合 vs 1..order.quantity → 缺号
+    4. 锁批次 FOR UPDATE + 校验 (quantity - generated) >= 缺数
+    5. 循环生成 AssetCard（card_no/unique_code 同旧 _issue_card）
+    6. 插入 OrderCard（item_no 1..quantity 全员覆盖由 UK 防重）
+    7. 批次 generated += 新增数
+    8. 数量齐 → order.status = "fulfilled"，否则 "issuing" 待重试
+    9. 落 PaymentRetryJob 状态 succeeded / retry / failed
+    10. COMMIT
+
+    调用方：BackgroundTasks + DB poller（lifespan 启停）
+    失败重试：指数退避 30s → 2m → 10m → 30m → failed + 告警
+    """
+```
+
+#### 关键工程要点
+
+| 项 | 抽离前 | 抽离后（`payment_fulfillment.py`） |
+|----|--------|-----------------------------------|
+| 调用方 | `pay_order` 同步 `await` | webhook ACK 后 `BackgroundTasks.add_task`；poller 兜底 |
+| 行锁 | 无 | `with_for_update()` 锁订单 + 锁批次 |
+| 数量 | 固定 1 | 按 `order.quantity - len(existing_order_card)` 计算缺号 |
+| 卡密码 | 明文返 `issued_card_password` | AES-256-GCM 密文存 `credential_ciphertext`；明文仅 `BackgroundTasks` 返回供前台展示一次 |
+| 失败回滚 | 整笔支付事务回滚 | 仅本次卡回滚；订单 `status=issuing` 保持支付事实 `paid` |
+| 库存超卖 | 理论可能 | 锁批次 + 校验 `quantity - generated` |
+| 重试 | 无 | `cms_payment_retry_queue` 表持久化 + 指数退避 |
+| 审计 | 仅日志 | `PaymentRetryJob` + `OrderCard.issued_at` 全链路可追 |
+
+#### 行锁 + 库存校验伪码
+
+```python
+async def _pick_batch_with_stock(session, type_id: int, need: int) -> AssetCardBatch:
+    # 仅选 active 且库存足够的批次；FOR UPDATE 锁住防并发扣减
+    batch = (await session.execute(
+        select(AssetCardBatch)
+        .where(
+            AssetCardBatch.type_id == type_id,
+            AssetCardBatch.status == "active",
+            AssetCardBatch.quantity.is_not(None),
+        )
+        .with_for_update(skip_locked=True)
+        .order_by(AssetCardBatch.id.desc())
+    )).scalars().first()
+    if not batch:
+        # fallback 允许 draft 自动转 active（兼容 mock 测试）
+        batch = (await session.execute(
+            select(AssetCardBatch)
+            .where(AssetCardBatch.type_id == type_id, AssetCardBatch.status == "draft")
+            .with_for_update(skip_locked=True)
+            .order_by(AssetCardBatch.id.desc())
+        )).scalars().first()
+        if not batch:
+            raise BatchUnavailable(f"card_type={type_id} 无可用批次")
+        batch.status = "active"
+    if (batch.quantity - (batch.generated or 0)) < need:
+        raise InsufficientStock(f"batch={batch.id} 剩 {batch.quantity - (batch.generated or 0)} < need={need}")
+    return batch
+```
+
+#### 卡号唯一键冲突重试
+
+`AssetCard.card_no` 有唯一约束。`secrets.choice(digits)` × 16 撞库概率 ~1/10^16，可忽略；但工程上仍包一层：
+
+```python
+for attempt in range(3):
+    card_no = "".join(secrets.choice(string.digits) for _ in range(16))
+    try:
+        with session.begin_nested():  # SAVEPOINT
+            session.add(AssetCard(card_no=card_no, ...))
+            await session.flush()
+        break
+    except IntegrityError:
+        continue
+else:
+    raise CardNumberExhausted("3 次重试仍冲突")
+```
+
+#### 验收（迁移到本服务后）
+
+- `test_cms.py` 新增 6 用例：quantity=3 全发、quantity=3 重跑幂等、并发同 batch 不超卖、批次无库存失败、PaymentRetryJob 5 次耗尽转 `failed`、BackgroundTasks 关闭后 poller 兜底；
+- 旧 `_issue_card` 移除，pay_order 在 mock 模式继续走 `confirm_payment(mock_notification)` 走完整服务链路（保持代码同源）；wechat 模式 webhook 入口不再调旧同步路径。
+
+---
+
+### §7.21 notifier 重构方案（`services/notifier.py` · 当前 22 行）
+
+#### 现状盘点
+
+| 项 | 当前 | 问题 |
+|----|------|------|
+| 超时 | `httpx.AsyncClient(timeout=5)` | 5 秒同步等待，业务响应被通知拖累 |
+| 失败处理 | `except Exception: pass` | 静默吞错，无日志无指标 |
+| 重试 | 无 | 瞬时故障永久丢通知 |
+| 签名 | 无 | 接收方无法验源、防重放 |
+| 客户端复用 | 每次新建 | 连接不复用，DNS/TLS 重复开销 |
+| 配置刷新 | import 时读 `os.getenv` | 运行时改 env 不生效，须重启 |
+| 幂等键 | 无 | 未来补重试将导致接收方重复处理 |
+| 死信 | 无 | 长期失败无人工补偿入口 |
+| 指标 | 无 Prometheus | 无法观测丢通知率 / 延迟分布 |
+
+#### 重构目标
+
+P0 阶段最小修复 + 后续渐进式升级：
+
+1. **同步→异步**：webhook 调用挪出请求协程，立即返回 200；
+2. **客户端复用**：模块级 `httpx.AsyncClient`（连接池复用）；
+3. **结构化失败日志**：JSON 行 + `event/id/order_id/latency_ms/error_class`；
+4. **`raise_for_status()`**：4xx/5xx 不当成功；
+5. **指数退避重试**：30s → 2m → 10m → 30m → 进 dead-letter；
+6. **HMAC-SHA256 签名头**：`X-Notify-Signature` + `X-Notify-Timestamp` + `X-Notify-Nonce`；
+7. **Prometheus 指标**：`NOTIFY_REQUESTS / NOTIFY_ERRORS / NOTIFY_LATENCY / NOTIFY_DLQ`；
+8. **配置热加载**：用 `app.config.settings` 而非 `os.getenv`。
+
+#### 重构后骨架（草案）
+
+```python
+# mis-system/services/admin/app/services/notifier.py（重构版）
+import asyncio
+import hashlib
+import hmac
+import json
+import secrets
+import time
+from typing import Any
+
+import httpx
+
+from app.config import settings  # 热加载；settings.notify_webhook_url 等
+
+_CLIENT: httpx.AsyncClient | None = None
+_WORKER: asyncio.Task | None = None
+_QUEUE: asyncio.Queue[NotifyEvent] | None = None
+_WORKER_ID = f"worker-{secrets.token_hex(4)}"
+
+
+async def _get_client() -> httpx.AsyncClient:
+    global _CLIENT
+    if _CLIENT is None or _CLIENT.is_closed:
+        _CLIENT = httpx.AsyncClient(
+            timeout=httpx.Timeout(connect=3.0, read=30.0, write=10.0, pool=3.0),
+            limits=httpx.Limits(max_keepalive_connections=10, max_connections=20),
+        )
+    return _CLIENT
+
+
+def _sign(secret: str, ts: str, nonce: str, body: bytes) -> str:
+    mac = hmac.new(secret.encode(), f"{ts}\n{nonce}\n".encode() + body, hashlib.sha256)
+    return mac.hexdigest()
+
+
+async def notify(event: str, data: dict, *, event_id: str | None = None) -> None:
+    """P0：仅入队，立即返回。接收方凭 event_id 做幂等。"""
+    if not settings.notify_webhook_url:
+        return  # 未配置完全跳过（保留旧行为）
+    ev = NotifyEvent(
+        id=event_id or secrets.token_hex(16),
+        event=event, data=data,
+        enqueued_at=time.time(), attempts=0,
+    )
+    _QUEUE.put_nowait(ev)
+    NOTIFY_REQUESTS.labels(event=event, stage="enqueue").inc()
+
+
+async def _worker_loop() -> None:
+    assert _QUEUE is not None
+    while True:
+        ev = await _QUEUE.get()
+        try:
+            await _dispatch(ev)
+        finally:
+            _QUEUE.task_done()
+
+
+async def _dispatch(ev: NotifyEvent, *, attempt: int = 1) -> None:
+    body = json.dumps({"event": ev.event, "data": ev.data}, separators=(",", ":")).encode()
+    ts = str(int(time.time()))
+    nonce = secrets.token_hex(8)
+    headers = {
+        "Content-Type": "application/json",
+        "X-Notify-Event": ev.event,
+        "X-Notify-Id": ev.id,
+        "X-Notify-Timestamp": ts,
+        "X-Notify-Nonce": nonce,
+    }
+    if settings.notify_signing_secret:
+        headers["X-Notify-Signature"] = _sign(settings.notify_signing_secret, ts, nonce, body)
+
+    start = time.time()
+    try:
+        cli = await _get_client()
+        resp = await cli.post(settings.notify_webhook_url, content=body, headers=headers)
+        latency = time.time() - start
+        NOTIFY_LATENCY.labels(event=ev.event, stage="send").observe(latency)
+        if 200 <= resp.status_code < 300:
+            NOTIFY_REQUESTS.labels(event=ev.event, stage="ok").inc()
+            return
+        # 4xx 不重试；5xx 重试
+        if 400 <= resp.status_code < 500:
+            NOTIFY_REQUESTS.labels(event=ev.event, stage="client_error").inc()
+            await _dlq(ev, f"HTTP {resp.status_code}: {resp.text[:200]}")
+            return
+        raise RuntimeError(f"server_error {resp.status_code}")
+    except Exception as exc:
+        NOTIFY_ERRORS.labels(event=ev.event, error_class=type(exc).__name__).inc()
+        if attempt >= 5:
+            await _dlq(ev, f"{type(exc).__name__}: {exc}")
+            return
+        # 指数退避：30s / 2m / 10m / 30m / 进 DLQ
+        delay = [30, 120, 600, 1800][min(attempt - 1, 3)]
+        await asyncio.sleep(delay)
+        await _dispatch(ev, attempt=attempt + 1)
+
+
+async def _dlq(ev: NotifyEvent, reason: str) -> None:
+    NOTIFY_REQUESTS.labels(event=ev.event, stage="dlq").inc()
+    # 写本地 dead_letter.log 或 DB 表（cms_notify_dlq）
+    logger.warning(json.dumps({
+        "kind": "notify_dlq", "id": ev.id, "event": ev.event,
+        "attempts": ev.attempts, "reason": reason,
+    }))
+
+
+async def start_worker() -> None:
+    """lifespan 启动时调用：建队列 + worker 协程。"""
+    global _QUEUE, _WORKER
+    _QUEUE = asyncio.Queue(maxsize=10000)
+    _WORKER = asyncio.create_task(_worker_loop(), name="notifier-worker")
+
+
+async def stop_worker() -> None:
+    """lifespan 关闭时调用：drain 队列后取消 worker。"""
+    global _WORKER, _QUEUE
+    if _QUEUE:
+        await _QUEUE.join()
+    if _WORKER:
+        _WORKER.cancel()
+        try:
+            await _WORKER
+        except asyncio.CancelledError:
+            pass
+    if _CLIENT:
+        await _CLIENT.aclose()
+```
+
+#### 风险与边界
+
+- **业务响应**：入队 O(1)，业务接口不再被 webhook 拖累；
+- **背压**：队列满时 `put_nowait` 抛 `QueueFull`，调用方可选择 `notify(..., enqueue_blocking=True)` 或直接放弃（YAGNI）；
+- **重启丢队列**：未消费的事件在重启时丢失；如需持久化走 `cms_notify_outbox` 表 + poller（同 payment_fulfillment 模式）；
+- **接收方去重**：依赖 `X-Notify-Id`，接收方需自行落库去重；
+- **签名密钥轮转**：`settings.notify_signing_secret` 变更后旧事件仍按旧 key 签；接收方应支持多 key 并行校验。
+
+#### Prometheus 指标定义
+
+| 指标 | 类型 | label | 含义 |
+|------|------|-------|------|
+| `notify_requests_total` | Counter | `event` / `stage` | enqueue / ok / client_error / dlq |
+| `notify_errors_total` | Counter | `event` / `error_class` | 异常分类 |
+| `notify_latency_seconds` | Histogram | `event` / `stage` | 端到端发送耗时 |
+| `notify_dlq_total` | Counter | `event` | 死信累计 |
+
+#### 与 P0 关系
+
+notifier 升级独立于 P0 支付 webhook（P0 是入站回调，notifier 是出站通知）；二者共用队列/重试/指标模式，但失败不互相牵连。`pay_order` 在业务 commit 后调用 `notify()` 即丢入队，不阻塞。
+
+---
+
+### §7.22 STS 注入点（`services/storage/cos.py` + `services/storage/sts.py` · 当前 YAGNI）
+
+#### 当前状态
+
+`CosStorage.__init__` 直接在 `__init__` 阶段把 `secret_id / secret_key` 塞进 `CosConfig`，构造一次性完成，**之后无法轮换凭据**：
+
+```python
+# cos.py L78-107（现状）
+def __init__(self, *, region, secret_id, secret_key, bucket, scheme="https", timeout=60.0):
+    ...
+    CosConfig, CosS3Client = _try_import_cos_sdk()
+    config = CosConfig(
+        Region=region, SecretId=secret_id, SecretKey=secret_key,
+        Scheme=scheme, Timeout=int(timeout),
+    )
+    self._client = CosS3Client(config)
+```
+
+Long-Term Key 风险：
+
+- **凭据散落**：CAM 子账号 AK/SK 静态写在 env，进程长跑期间无法轮换；
+- **泄漏面**：任何一处日志/异常/dump 包含 config repr 即泄漏；
+- **多租户**：未来若要给不同 bucket/业务开不同子账号，凭据硬绑 init 阶段。
+
+#### STS 改造路径（YAGNI 当前不动，**注入点已就位**）
+
+`sts.py` 已存在 `STSCredentialProvider` 抽象（参见 `project-sprint0-storage-2026-07-14.md`），未来启用时仅需在 `CosStorage.__init__` 增加 1 个可选参数：
+
+```python
+def __init__(
+    self,
+    *,
+    region: str,
+    bucket: str,
+    scheme: str = "https",
+    timeout: float = 60.0,
+    # ── 凭据注入（互斥）：long-term 直接传 / sts provider 注入
+    secret_id: str | None = None,
+    secret_key: str | None = None,
+    sts_provider: STSCredentialProvider | None = None,
+):
+    if not region: raise InvalidArgument("CosStorage 缺 region")
+    if not bucket: raise InvalidArgument("CosStorage 缺 bucket")
+
+    self.region = region
+    self.bucket = bucket
+    self.scheme = scheme
+
+    # 凭据获取策略：STS 优先；fallback long-term
+    if sts_provider is not None:
+        creds = sts_provider.fetch()  # {"SecretId": "...", "SecretKey": "...", "Expiration": "..."}
+        self._secret_id = creds["SecretId"]
+        self._secret_key = creds["SecretKey"]
+        self._sts_provider = sts_provider
+    elif secret_id and secret_key:
+        self._secret_id = secret_id
+        self._secret_key = secret_key
+        self._sts_provider = None
+    else:
+        raise InvalidArgument("CosStorage 需 secret_id/secret_key 或 sts_provider")
+
+    CosConfig, CosS3Client = _try_import_cos_sdk()
+    self._client = self._build_client(CosConfig, CosS3Client)
+```
+
+#### 客户端重建钩子（动态轮换）
+
+STS 临时凭证有效期通常 1-2 小时，**过期前必须重建 `CosS3Client`**。建议在 `presigned_upload` / `_call` 调用前检查：
+
+```python
+def _ensure_fresh_credentials(self, CosConfig, CosS3Client) -> None:
+    """STS 模式：在凭证过期前 5 分钟重建 client。"""
+    if self._sts_provider is None:
+        return  # long-term 不轮换
+    if not self._client or self._creds_about_to_expire():
+        creds = self._sts_provider.fetch()
+        self._secret_id = creds["SecretId"]
+        self._secret_key = creds["SecretKey"]
+        self._client = CosS3Client(CosConfig(
+            Region=self.region, SecretId=self._secret_id,
+            SecretKey=self._secret_key, Scheme=self.scheme,
+            Timeout=int(self._timeout),
+        ))
+        COS_TOKEN_ROTATIONS.inc()
+```
+
+`_call` / `presigned_upload` / `presigned_download` 入口都加一行 `self._ensure_fresh_credentials(...)` 即可。
+
+#### 启用判定
+
+| 条件 | 决策 |
+|------|------|
+| 单租户 / 单 bucket / 单 sub-account | **保持 Long-Term Key**（当前） |
+| 多租户 / 多 bucket / 凭证需定期轮换 | 启用 STS |
+| 前端直传 presigned URL 需分用户签发 | 启用 STS（不同用户拿不同临时 key） |
+
+`project-sprint0-storage-2026-07-14.md` 已记录用户决策：**复用 qmwx-cos-uploader 子账号不新建**（STS 暂缓 YAGNI，代码零改动吃长密钥）；故当前 §7.22 **仅作注入点设计存档**，不实施。
+
+#### 验收（如未来启用）
+
+- `tests/integration/test_cos_integration.py` 新增 3 用例：STS 过期前自动轮换、STS provider 失败重试、长期 Key 模式兼容；
+- `services/storage/cos.py` 构造函数签名变更需保留向后兼容（旧 `secret_id/secret_key` 调用方零改动）；
+- `services/storage/sts.py` 需补 `LocalSTSCredentialCache`（避免每次 IO 都调 STS API）；
+- COS 子账号 CAM 策略升级为允许 `sts:AssumeRole`（最小权限 + 限定 source ip）。
+
+#### 与 P0 关系
+
+P0 支付 webhook 不涉及对象存储；STS 改造与 P0 完全独立。本节仅为后续若启用多租户 / 子账号分桶 / 前端分用户直传签名等场景的"零成本预埋"参考。
 - **`STORAGE.md`**（🆕，`mis-system/docs/` 下）— Storage 抽象层 + 腾讯云 COS 决策
+
+---
+
+## 变更记录 (Changelog)
+
+- 2026-07-15 14:00:00 — P0 实施前精细深读（第五轮）：
+  - **§7.19 P0 Day 1.1 alembic migration 详解**：草案 `20260715_cms_payment_webhook_p0.py`（admin 服务尚未启用 alembic，先 `alembic init` + 配 `env.py`）；含 ProductOrder status 迁移 + cms_payment_idempotency / cms_payment_retry_queue / cms_order_card 三张新表 + ReferralCommission 唯一约束；SQLite/PG 双兼容 + 部分唯一索引 `postgresql_where`；
+  - **§7.20 发卡服务抽离方案**：新建 `services/payment_fulfillment.py` 领域服务（confirm_payment / issue_order_cards / claim_due_jobs / _pick_batch_with_stock）；行锁 + 库存校验 + 多卡 item_no 幂等 + 卡密码 AES-GCM 密文 + 卡号唯一键冲突重试；旧 `_issue_card` 同步路径作废；
+  - **§7.21 notifier 重构方案**：模块级 httpx.AsyncClient 复用 + asyncio.Queue worker + HMAC-SHA256 签名（X-Notify-Signature/Timestamp/Nonce）+ 4 级指数退避 30s/2m/10m/30m + dead-letter + Prometheus 4 指标；P0 阶段仅入队 O(1) 立即返回，业务不被通知拖累；
+  - **§7.22 STS 注入点**：CosStorage.__init__ 增加 sts_provider 可选参数 + _ensure_fresh_credentials 轮换钩子；当前 YAGNI 保留注入点不实施（qmwx-cos-uploader 长密钥策略已落定）。
+- 2026-07-15 11:42:03 — 续跑增量更新（zcf:init-project）Sprint 0/1/2 收官 + 财务复式 + 工作台拖拽 + dy8 部署（详见上方 Changelog 索引，文件顶部）。
+- 2026-07-15 — office 桥全链路打通 + dev proxy 修复（详见 memory `project-officecli-bridge-2026-07-14.md`）。
+- 2026-07-14 14:54:32 — 续跑增量更新 CMS 模块全完成 + 全栈审查 + mlx-asr 测试补齐 + 前端 any 159→87。
+- 2026-07-13 10:58:44 — 续跑增量更新 路径修正 + 测试全景更新。
+- 2026-07-12 16:08:16 — 新增根级 CLAUDE.md（zcf:init-project 续跑）。
+- 2026-07-12 15:55:11 — 初始化 AI 上下文（zcf:init-project）。
