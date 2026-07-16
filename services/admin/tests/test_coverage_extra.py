@@ -27,11 +27,11 @@ def test_data_to_excel_list_rows_with_headers(tmp_path):
 
 
 def test_html_to_pdf_or_skip(tmp_path):
-    """html_to_pdf（weasyprint 未装则 skip，不报错）。"""
+    """html_to_pdf（weasyprint 未装或 macOS 缺 GTK 系统库则 skip，不报错）。"""
     try:
         import weasyprint  # noqa: F401
-    except ImportError:
-        pytest.skip("weasyprint 未装")
+    except (ImportError, OSError):
+        pytest.skip("weasyprint 不可用（缺系统库 libgobject-2.0-0 等）")
     from app.services.office.engine import html_to_pdf
     out = tmp_path / "t.pdf"
     html_to_pdf("<h1>标题</h1><p>内容</p>", str(out))

@@ -21,3 +21,11 @@ alembic>=1.13.0
 wechatpayv3>=1.0.0      # 微信支付 v3 SDK（RSA + AES-GCM）
 pycryptodome>=3.18.0    # AES-256-GCM 解密（兜底 SDK 缺）
 cryptography>=41.0.0    # RSA 验签 + 平台证书管理
+
+# === Office Engine 本地引擎（2026-07-16）===
+# admin app/services/office/engine.py 依赖
+# 缺包时 engine.py 内部抛 OfficeEngineError（fail-closed），不影响 admin 启动
+openpyxl>=3.1           # data_to_excel (xlsx 生成)
+python-pptx>=0.6         # data_to_pptx (pptx 生成)
+# weasyprint>=60.0       # html_to_pdf (需要 cairo/pango 系统库；macOS brew install pango libffi)
+# reportlab>=4.0         # TripGen PDF body（lazy import）
