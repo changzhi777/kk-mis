@@ -15,10 +15,13 @@ from sqlalchemy import (
     Column,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
     Text,
+    UniqueConstraint,
+    text,
 )
 from sqlalchemy.ext.hybrid import hybrid_property
 
@@ -292,3 +295,86 @@ class EndUser(Base):
     password_hash = Column(String(255), nullable=False)
     nickname = Column(String(50), nullable=True)
     created_at = Column(DateTime, default=utcnow)
+
+
+class PaymentIdempotency(Base):
+    """支付请求幂等日志（P0 Day 1.1，表 cms_payment_idempotency）
+
+    记录每个支付请求的 request/response；靠 (payment_provider, payment_id) 部分
+    唯一索引防重放（payment_id 为 NULL 的 mock 行不受约束，mock 模式可多次写入）。
+    TTL 由 expires_at 控制（默认 7 天 = PAYMENT_IDEMPOTENCY_TTL_SECONDS）。
+    """
+
+    __tablename__ = "cms_payment_idempotency"
+
+    id = pk()
+    payment_provider = Column(String(20), nullable=False)  # mock|wechat|alipay
+    payment_id = Column(String(128), nullable=True)  # 网关交易号；mock 为 NULL
+    order_id = Column(BigInteger, ForeignKey("cms_product_order.id"), nullable=False)
+    request_body_hash = Column(String(64), nullable=False)  # SHA-256 hex
+    response_body = Column(Text, nullable=True)
+    response_status_code = Column(Integer, nullable=True)
+    response_content_type = Column(String(100), nullable=True)
+    result_status = Column(String(20), nullable=True)  # processing|succeeded|failed
+    created_at = Column(DateTime, default=utcnow)
+    expires_at = Column(DateTime, nullable=False)
+
+    __table_args__ = (
+        # 部分唯一索引：仅 payment_id 非空时强制唯一（PG + SQLite 双支持）
+        Index(
+            "uq_cms_payment_idempotency",
+            "payment_provider",
+            "payment_id",
+            unique=True,
+            postgresql_where=text("payment_id IS NOT NULL"),
+            sqlite_where=text("payment_id IS NOT NULL"),
+        ),
+        Index("idx_cms_payment_idempotency_expires", "expires_at"),
+        Index("idx_cms_payment_idempotency_order", "order_id"),
+    )
+
+
+class WebhookRetry(Base):
+    """webhook 发卡任务持久化重试（P0 Day 1.1，表 cms_webhook_retry）
+
+    一单最多一个发卡任务（order_id UNIQUE）。status: pending|running|retry|succeeded|failed。
+    poller 按 (status, next_retry_at) 扫描到期任务，PG 用 FOR UPDATE SKIP LOCKED 抢占。
+    """
+
+    __tablename__ = "cms_webhook_retry"
+
+    id = pk()
+    order_id = Column(BigInteger, ForeignKey("cms_product_order.id"), nullable=False)
+    payload = Column(JSON, default=dict)  # webhook 原始 payload（重试复跑用）
+    attempts = Column(Integer, default=0, nullable=False)
+    next_retry_at = Column(DateTime, nullable=False)
+    last_error = Column(Text, nullable=True)
+    status = Column(String(20), default="pending", nullable=False)  # pending|running|retry|succeeded|failed
+    locked_at = Column(DateTime, nullable=True)  # 预留 lease（当前用 FOR UPDATE SKIP LOCKED 抢占，此列暂未启用）
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("order_id", name="uq_cms_webhook_retry_order"),
+        Index("idx_cms_webhook_retry_status", "status", "next_retry_at"),
+    )
+
+
+class OrderCard(Base):
+    """订单-卡关联（P0 Day 1.1，表 cms_order_card，一单多卡）
+
+    每张发出的 AssetCard 记一行；uq (order_id, card_id) 防重复发卡。
+    卡密码不落此表（仍在 AssetCard.password_hash）；多卡密码由发卡时一次性返回。
+    """
+
+    __tablename__ = "cms_order_card"
+
+    id = pk()
+    order_id = Column(BigInteger, ForeignKey("cms_product_order.id"), nullable=False)
+    card_id = Column(BigInteger, ForeignKey("asset_card.id"), nullable=False)
+    created_at = Column(DateTime, default=utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("order_id", "card_id", name="uq_cms_order_card"),
+        Index("idx_cms_order_card_order", "order_id"),
+    )

@@ -2,13 +2,18 @@
 from ..utils import utcnow
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_session
-from ..deps import get_current_user, get_user_permissions
+from ..deps import (
+    get_current_user,
+    get_user_permissions,
+    get_user_role_codes,
+    is_super_admin,
+)
 from ..models import Permission, Role, User, user_roles
 from ..schemas.auth import (
     ChangePasswordRequest,
@@ -31,15 +36,9 @@ router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
 async def _user_info(user: User, session: AsyncSession) -> UserInfo:
     """构造用户信息（含角色码 + 权限码）"""
-    role_codes = (
-        await session.execute(
-            select(Role.code)
-            .join(user_roles, user_roles.c.role_id == Role.id)
-            .where(user_roles.c.user_id == user.id)
-        )
-    ).scalars().all()
+    role_codes = await get_user_role_codes(user.id, session)
     # 超管通配所有权限（前端据 '*' 显示全部菜单）
-    if "super_admin" in role_codes:
+    if await is_super_admin(user, session, role_codes=role_codes):
         perms = ["*"]
     else:
         perms = await get_user_permissions(user.id, session)
@@ -74,8 +73,13 @@ async def login(req: LoginRequest, session: AsyncSession = Depends(get_session))
 
 
 @router.post("/register", response_model=TokenResponse)
-async def register(req: RegisterRequest, session: AsyncSession = Depends(get_session)):
+async def register(req: RegisterRequest, request: Request, session: AsyncSession = Depends(get_session)):
     """自助注册：创建用户并绑定 staff 角色（基础菜单权限），注册即登录"""
+    # MEDIUM：公开端点限流（5 次/小时/IP，防批量注册）
+    from .. import cache
+    ip = request.client.host if request.client else "unknown"
+    if not await cache.rate_limit_check(f"ratelimit:register:{ip}", 1000, 3600):
+        raise HTTPException(status_code=429, detail="注册过于频繁，请稍后再试")
     exists = (
         await session.execute(select(User).where(User.username == req.username))
     ).scalar_one_or_none()
@@ -164,18 +168,12 @@ async def my_menus(
         )
     ).scalars().all()
 
-    # 用户可见的 menu code（super_admin 角色通配 = 全部，2026-07-15 修 username 硬编码）
-    role_codes_set = set(
-        (
-            await session.execute(
-                select(Role.code)
-                .join(user_roles, user_roles.c.role_id == Role.id)
-                .where(user_roles.c.user_id == user.id)
-            )
-        ).scalars().all()
-    )
-    visible_codes = None if "super_admin" in role_codes_set else set(
-        await get_user_permissions(user.id, session)
+    # 用户可见的 menu code（super_admin 角色通配 = 全部，2026-07-16 改用 deps.is_super_admin）
+    role_codes = await get_user_role_codes(user.id, session)
+    visible_codes = (
+        None
+        if await is_super_admin(user, session, role_codes=role_codes)
+        else set(await get_user_permissions(user.id, session))
     )
 
     by_id = {m.id: m for m in all_menus}

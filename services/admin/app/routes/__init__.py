@@ -11,6 +11,7 @@ from .departments import router as departments_router
 from .finance import finance_routers
 from .oa_agent_bridge import router as oa_agent_bridge_router
 from .office import router as office_router
+from .tripgen import router as tripgen_router
 from .permissions import router as permissions_router
 from .roles import router as roles_router
 from .storage import router as storage_router
@@ -34,6 +35,7 @@ all_routers = [
     member_router,
     oa_agent_bridge_router,
     office_router,
+    tripgen_router,
     storage_router,
 ]
 

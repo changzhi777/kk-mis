@@ -9,7 +9,7 @@ import secrets
 import string
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...db import get_session
@@ -90,9 +90,23 @@ async def generate_cards(
     import os
     import uuid
 
-    b = await session.get(AssetCardBatch, batch_id)
+    # with_for_update 锁行防并发超发（PG: SELECT ... FOR UPDATE；
+    # SQLite: SQLAlchemy 静默降级为普通 SELECT，不报错）
+    b = (
+        await session.execute(
+            select(AssetCardBatch)
+            .where(AssetCardBatch.id == batch_id)
+            .with_for_update()
+        )
+    ).scalars().first()
     if not b:
         raise HTTPException(404, "批次不存在")
+    # 容量校验：本次生成 + 已生成不得超过批次容量（行锁保护下原子可见）
+    if (b.generated or 0) + req.quantity > b.quantity:
+        raise HTTPException(
+            400,
+            f"超过批次容量（批次 {b.quantity} 张，已生成 {b.generated or 0}，本次 {req.quantity}）",
+        )
     type_ = await session.get(AssetCardType, b.type_id)
     if not type_:
         raise HTTPException(400, "类型不存在")
@@ -162,6 +176,17 @@ async def delete_batch(
     b = await session.get(AssetCardBatch, batch_id)
     if not b:
         raise HTTPException(404, "批次不存在")
+    # MEDIUM：预检——有已发放/核销卡时拒绝删除（防孤儿卡）
+    in_use = (
+        await session.execute(
+            select(func.count(AssetCard.id)).where(
+                AssetCard.batch_id == batch_id,
+                AssetCard.status.in_(["issued", "used", "void"]),
+            )
+        )
+    ).scalar_one()
+    if in_use > 0:
+        raise HTTPException(400, f"批次下有 {in_use} 张已发放/核销卡，不可删除（先作废或转移）")
     await session.delete(b)
     await session.commit()
     return {"success": True}

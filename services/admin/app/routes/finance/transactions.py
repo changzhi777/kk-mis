@@ -1,6 +1,10 @@
 """收支流水路由（⚠️ DEPRECATED 2026-07-15：复式记账 Voucher 上线后单式流水逐步废弃，新功能用 /vouchers）。
 
 保留兼容旧数据/前端；新业务用 POST /api/v1/finance/vouchers（借贷平衡 + 过账）。
+
+⚠️ MEDIUM 双轨余额漂移：本路由与 vouchers 都直接改 FinanceAccount.balance。
+同一笔业务若同时记 transaction + voucher，余额会翻倍。迁移期勿混用同账户；
+彻底解决随 transactions 废弃（见 P2 移除任务）。
 """
 import io
 from datetime import datetime

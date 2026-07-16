@@ -60,11 +60,14 @@ async def create_announcement(
 async def get_announcement(
     aid: int,
     session: AsyncSession = Depends(get_session),
-    _=Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ):
     a = await session.get(Announcement, aid)
     if not a:
         raise HTTPException(404, "公告不存在")
+    # MEDIUM：单条也走 scope 校验（原只 list 过滤，get 可越权看非本部门定向公告）
+    if a.scope != "all" and a.dept_id != user.dept_id:
+        raise HTTPException(403, "无权查看此公告")
     return AnnouncementOut.model_validate(a)
 
 

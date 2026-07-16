@@ -4,24 +4,23 @@
 - 支付 mock（pending→paid，核销券 used_count）；不发真实 asset 卡（运营后续发卡）
 """
 import io
-import os
-import secrets
-import string
-import uuid
+import logging
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ... import cache
 from ...db import get_session
 from ...deps import require_permission
-from ...models import AssetCard, AssetCardBatch, AssetCardType, Coupon, ProductOrder, TourPass, TourProduct
-from ...schemas.cms import ProductOrderCreate, ProductOrderOut
-from ...security import hash_password
+from ...models import Coupon, ProductOrder, TourPass, TourProduct
+from ...schemas.cms import ProductOrderCreate, ProductOrderDetailOut, ProductOrderOut
 from ...services.notifier import notify
 from ...utils import to_csv, utcnow
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/cms/orders", tags=["cms-order"])
 
@@ -33,8 +32,19 @@ def _calc_discount(coupon: Coupon, original: Decimal) -> Decimal:
 
 
 @router.post("")
-async def create_order(req: ProductOrderCreate, session: AsyncSession = Depends(get_session)):
-    """公开下单（算价含优惠券，创建 pending 订单）"""
+async def create_order(
+    req: ProductOrderCreate,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    """公开下单（算价含优惠券，创建 pending 订单）
+
+    H17：公开端点 IP 限流 30/min（防"卡农场"批量刷单）。
+    """
+    # H17 限流（fail-open：Redis 不可用放行）
+    ip = request.client.host if request.client else "unknown"
+    if not await cache.rate_limit_check(f"ratelimit:cms_order:{ip}", 30, 60):
+        raise HTTPException(429, "下单过于频繁，请稍后再试")
     p = await session.get(TourProduct, req.product_id)
     if not p or p.status != "published" or p.type != "pass":
         raise HTTPException(400, "仅已发布的权益卡（pass）产品可下单")
@@ -94,83 +104,79 @@ async def create_order(req: ProductOrderCreate, session: AsyncSession = Depends(
     return ProductOrderOut.model_validate(order).model_dump()
 
 
-async def _issue_card(session: AsyncSession, card_type_id: int) -> tuple[str, str] | None:
-    """从 card_type 找 active batch，生成 1 张卡，返回 (card_no, password) 明文；无 batch 返回 None"""
-    batch = (
-        await session.execute(
-            select(AssetCardBatch)
-            .where(AssetCardBatch.type_id == card_type_id, AssetCardBatch.status.in_(["draft", "active"]))
-            .order_by(AssetCardBatch.id.desc())
-        )
-    ).scalars().first()
-    if not batch:
-        return None
-    type_ = await session.get(AssetCardType, card_type_id)
-    card_no = "".join(secrets.choice(string.digits) for _ in range(16))
-    password = "".join(secrets.choice(string.digits) for _ in range(6))
-    unique_code = secrets.token_hex(32)
-    base_url = os.getenv("ANTICOUNTERFEIT_BASE_URL", "https://aisport.tech/oa/verify")
-    session.add(
-        AssetCard(
-            batch_id=batch.id,
-            type_id=card_type_id,
-            card_no=card_no,
-            unique_code=unique_code,
-            blockchain_tx_hash=uuid.uuid4().hex,
-            qr_url=f"{base_url}/{unique_code}",
-            password_hash=hash_password(password),
-            face_value=type_.face_value if type_ else 0,
-            unit_price=type_.unit_price if type_ else 0,
-            status="issued",
-        )
-    )
-    batch.generated = (batch.generated or 0) + 1
-    if batch.status == "draft":
-        batch.status = "active"
-    return card_no, password
-
-
 @router.post("/{order_id}/pay")
 async def pay_order(order_id: int, session: AsyncSession = Depends(get_session)):
-    """支付（gateway.pay → paid → 券核销 + 自动发卡）"""
-    from ...services.payment import gateway
+    """支付（gateway.pay → confirm_payment 幂等确认 → issue_order_cards 发卡履约）
 
-    o = await session.get(ProductOrder, order_id)
+    mock 与真支付（wechat）共用 payment_fulfillment 链路；真支付时 gateway 换真实现，
+    webhook 异步回调也调同一 confirm_payment（幂等）。
+
+    事务边界（P0 §3.4 届约分层）：
+    - 行锁（FOR UPDATE）贯穿 pending 检查 → gateway.pay → confirm，防并发双扣；
+    - 支付事实（confirm_payment → paid）先 commit 落库，不可逆；
+    - 发卡履约（issue_order_cards）在独立 SAVEPOINT 内执行，失败只回滚发卡，
+      订单保持 paid（响应标注"发卡待重试"），不回滚支付事实。
+    """
+    from ...config import settings
+    from ...services.payment import gateway
+    from ...services.payment_fulfillment import (
+        PaymentConflictError,
+        PaymentNotification,
+        confirm_payment,
+        issue_order_cards,
+    )
+
+    # CRITICAL 3 修复：行锁防并发双扣（PG: FOR UPDATE；SQLite: 整库锁）
+    o = (
+        await session.execute(
+            select(ProductOrder).where(ProductOrder.id == order_id).with_for_update()
+        )
+    ).scalar_one_or_none()
     if not o:
         raise HTTPException(404, "订单不存在")
-    if o.pay_status != "pending":
-        raise HTTPException(400, f"订单状态 {o.pay_status}，不可支付")
-    # 支付网关（mock 直接成功；真支付时 gateway 换真实现 + 密钥）
+    if o.effective_status != "pending":
+        raise HTTPException(400, f"订单状态 {o.effective_status}，不可支付")
+    # 支付网关（mock 直接成功；真支付 gateway 换 WechatPayV3Gateway）
     result = await gateway.pay(o.id, o.total, subject=f"订单{o.id}")
     if not result.success:
         raise HTTPException(400, f"支付失败: {result.message}")
-    o.pay_status = "paid"
-    o.paid_at = utcnow()
-    o.transaction_id = result.transaction_id
-    # A2 推荐返佣（total * 5%，pending 待结算）
-    if o.referrer_agent_id:
-        referral = (o.total * Decimal("0.05")).quantize(Decimal("0.01"))
-        o.referral_commission = referral
-        from ...models import ReferralCommission
-        session.add(ReferralCommission(
-            agent_id=o.referrer_agent_id, product_order_id=o.id,
-            amount=referral, status="pending",
-        ))
-    if o.coupon_id:
-        c = await session.get(Coupon, o.coupon_id)
-        if c:
-            c.used_count += 1
-    # 真发卡（产品关联 card_type 时）
-    p = await session.get(TourProduct, o.product_id)
-    if p and p.card_type_id:
-        issued = await _issue_card(session, p.card_type_id)
-        if issued:
-            o.issued_card_no, o.issued_card_password = issued
+    # 幂等支付确认（券核销 + 返佣 + 双写 status/pay_status，统一 mock/wechat 链路）
+    amount_fen = int((o.total * Decimal("100")).to_integral_value())
+    try:
+        await confirm_payment(
+            session,
+            PaymentNotification(
+                provider=settings.payment_provider,
+                order_id=o.id,
+                amount_fen=amount_fen,
+                payment_id=result.transaction_id,
+                raw_payload={"source": "sync_pay", "transaction_id": result.transaction_id},
+            ),
+        )
+    except PaymentConflictError as e:
+        await session.rollback()
+        raise HTTPException(400, str(e))
+    # CRITICAL 4 修复：支付事实先 commit（paid 不可逆）；发卡用 SAVEPOINT 隔离
     await session.commit()
+    await session.refresh(o)
+
+    # 发卡履约（SAVEPOINT：失败只回滚发卡，订单保持 paid）
+    issue_pending = False
+    try:
+        async with session.begin_nested():
+            await issue_order_cards(session, o.id)
+        await session.commit()
+    except PaymentConflictError as e:
+        logger.warning("订单 %s 发卡失败（保持 paid，发卡待重试）: %s", order_id, e)
+        await session.rollback()
+        issue_pending = True
     await session.refresh(o)
     # webhook 通知新订单（旁路，失败静默）
     await notify("新订单", {"id": o.id, "buyer": o.buyer_name, "phone": o.buyer_phone, "total": str(o.total)})
-    return ProductOrderOut.model_validate(o).model_dump()
+    out = ProductOrderDetailOut.model_validate(o).model_dump()
+    if issue_pending:
+        out["issue_pending"] = True
+    return out
 
 
 @router.get("/export")

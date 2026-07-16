@@ -4,10 +4,11 @@
 - POST /vouchers：创建凭证（草稿）+ 分录，校验 Σdebit = Σcredit
 - POST /vouchers/{id}/post：过账 → 更新各账户余额（balance += debit - credit）
 """
+import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -50,9 +51,8 @@ async def create_voucher(
     for e in req.entries:
         if not await session.get(FinanceAccount, e.account_id):
             raise HTTPException(400, f"账户 {e.account_id} 不存在")
-    # 凭证号：记-日期-序号
-    seq = (await session.execute(select(func.count()).select_from(Voucher))).scalar_one() + 1
-    number = f"记-{req.voucher_date.strftime('%Y%m%d')}-{seq:03d}"
+    # 凭证号：记-日期-时间戳+uuid（避免 count+1 并发竞态；DB unique 约束兜底，HIGH 6 修复）
+    number = f"记-{req.voucher_date.strftime('%Y%m%d')}-{utcnow().strftime('%H%M%S')}-{uuid.uuid4().hex[:6]}"
     v = Voucher(
         number=number,
         voucher_date=req.voucher_date,
@@ -103,8 +103,15 @@ async def post_voucher(
     if total_d != total_c:
         raise HTTPException(400, f"借贷不平，无法过账：借 {total_d} ≠ 贷 {total_c}")
     # 复式余额：balance = Σ(debit - credit)，报表按 account_type 解释方向
+    # FOR UPDATE 锁账户行，防并发过账 lost update（HIGH 5 修复）
     for e in entries:
-        acc = await session.get(FinanceAccount, e.account_id)
+        acc = (
+            await session.execute(
+                select(FinanceAccount)
+                .where(FinanceAccount.id == e.account_id)
+                .with_for_update()
+            )
+        ).scalar_one_or_none()
         if acc:
             acc.balance = (acc.balance or Decimal("0")) + e.debit - e.credit
     v.status = "posted"
@@ -115,15 +122,24 @@ async def post_voucher(
 
 @router.get("")
 async def list_vouchers(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     status: str | None = None,
     session: AsyncSession = Depends(get_session),
     _=Depends(require_permission("finance:transaction:save")),
 ):
-    """凭证列表（含分录）。"""
+    """凭证列表（含分录，分页）。MEDIUM：原无分页全量返回。"""
     stmt = select(Voucher)
     if status:
         stmt = stmt.where(Voucher.status == status)
-    vouchers = (await session.execute(stmt.order_by(Voucher.id.desc()))).scalars().all()
+    total = (
+        await session.execute(select(func.count()).select_from(stmt.subquery()))
+    ).scalar_one()
+    vouchers = (
+        await session.execute(
+            stmt.order_by(Voucher.id.desc()).offset((page - 1) * page_size).limit(page_size)
+        )
+    ).scalars().all()
     # 批量查分录（避免 N+1，2026-07-15 优化）
     vids = [v.id for v in vouchers]
     all_entries = (
@@ -157,4 +173,4 @@ async def list_vouchers(
                 for e in entries
             ],
         })
-    return {"items": result}
+    return {"items": result, "total": total, "page": page, "page_size": page_size}

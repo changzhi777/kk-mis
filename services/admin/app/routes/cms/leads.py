@@ -94,6 +94,10 @@ async def update_lead_status(
     _=Depends(require_permission("cms:lead:save")),
 ):
     """线索状态流转（new/contacted/converted/closed）"""
+    # MEDIUM：状态流转白名单（防非法值写入）
+    valid = {"new", "contacted", "converted", "closed"}
+    if req.status not in valid:
+        raise HTTPException(400, f"非法状态，允许: {sorted(valid)}")
     lead = await session.get(InquiryLead, lead_id)
     if not lead:
         raise HTTPException(404, "线索不存在")

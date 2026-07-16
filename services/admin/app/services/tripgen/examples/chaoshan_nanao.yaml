@@ -1,0 +1,56 @@
+# tripgen 行程配置示例(YAML)。字段都可留空,build 时缺关键项会交互补齐。
+title: 潮汕 + 南澳岛 · 亲子4天图文攻略
+subtitle: 亲子攻略 · 一大一小 · 长沙出发 · 广州半天 + 潮汕取景 + 南澳住岛玩水
+origin: 长沙
+party: 一大一小
+dates: 7/29晚–8/3清晨
+
+route_map:
+  title: 一、总路线示意图
+  legend: 7/29晚卧铺→广州半天→动车到汕头;潮汕取景+南澳住岛;8/2夜广州中转卧铺,8/3清晨到长沙。
+  nodes:
+    - {name: 长沙(起点/终点), x: 0.12, y: 0.20, kind: origin}
+    - {name: 广州(中转), x: 0.42, y: 0.55, kind: transfer}
+    - {name: 汕头, x: 0.68, y: 0.62, kind: city}
+    - {name: 南澳岛, x: 0.86, y: 0.40, kind: sea}
+
+segments:
+  - {section: 长沙 → 广州, mode: K9275 卧铺 22:52→广州北06:20, duration: 约7.5h过夜, price: 硬卧¥163}
+  - {section: 广州东 → 汕头, mode: D7196 动车 18:52→21:51, duration: 约3h, price: 二等座¥243}
+  - {section: 汕头 → 南澳, mode: 跨海大桥(公交105/161), duration: 约1h, price: ¥10–100}
+  - {section: 汕头 → 广州(8/2), mode: 高铁约2h + K437/K9218 夜卧, duration: 过夜, price: ¥293+¥163}
+transport_note: 车次/时刻以12306实时为准;汕头↔长沙无直达卧铺,回程须在广州换乘。
+
+days:
+  - {label: "Day1\n7/30", text: "<b>广州半天→傍晚到汕头。</b>行李寄存广州东,玩正佳极地海洋世界,傍晚 D7196 到汕头。"}
+  - {label: "Day2\n7/31", text: "<b>汕头取景+潮州古城。</b>小公园开埠区、潮州广济桥/牌坊街、龙湖古寨。", sea: false}
+  - {label: "Day3\n8/1", text: "<b>澄海取景→上南澳住岛玩水。</b>陈慈黉故居,青澳湾玩水,住海景民宿看日落。", sea: true}
+  - {label: "Day4\n8/2", text: "<b>南澳看日出→傍晚经广州回程。</b>青澳湾日出再玩一轮,傍晚高铁到广州转夜卧。", sea: true}
+
+attractions:
+  - {name: 汕头小公园开埠区, desc: 百年骑楼群,电影取景地。, tag: 核心取景, icon: spot, link: ""}
+  - {name: 陈慈黉故居, desc: 潮汕侨宅巅峰,影片核心取景。, tag: 取景, icon: spot}
+  - {name: 青澳湾, desc: 南澳最美月牙湾,亲子玩水首选。, tag: 玩水, tip: 认准红旗禁泳、备泳圈看护孩子。, icon: beach}
+
+foods:
+  - {name: 牛肉丸/牛肉火锅, desc: 福合埕、八合里海记,现切现涮。, price: ¥60–90, group: 汕头, icon: hotpot}
+  - {name: 蚝烙, desc: 生蚝+薯粉煎香脆,飘香小食店。, price: ¥20–40, group: 汕头, icon: oyster}
+  - {name: 卤鹅/打冷, desc: 春梅里卤鹅、日日香。, price: ¥30–60, group: 汕头, icon: goose}
+  - {name: 胡荣泉, desc: 鸭母捻、腐乳饼、绿豆饼。, price: ¥10–15, group: 潮州, icon: sweetball}
+  - {name: 工夫茶, desc: 凤凰单丛,牌坊街叹茶。, price: "", group: 潮州, icon: teapot}
+
+lodging:
+  - {place: 汕头·2晚(7/30、7/31), rec: 小公园骑楼民宿或7天连锁, price: 民宿¥200–400/7天¥150–260, channel: 携程/美团/飞猪、7天官方App}
+  # 提示:值里含英文逗号时必须加引号(流式 {} 里逗号是分隔符)
+  - {place: 南澳青澳湾·1晚(8/1), rec: 海景民宿(南澳四季墅/岛上筑美宿), price: 旺季¥400–800, channel: "携程/美团/小红书搜『南澳青澳湾民宿海景』,提前2周订"}
+
+budget:
+  - {item: "火车(去+回+城际)", amount: 约¥1600–2200}
+  - {item: 住宿3晚, amount: 约¥800–1650}
+  - {item: 门票+上岛+水上项目, amount: 约¥400–700}
+  - {item: 餐饮(约5天), amount: 约¥800–1300}
+budget_total: 约¥4100–6400
+
+warnings:
+  - <b>正值台风季高峰!</b>南澳受台风影响直接,大风时封桥停航;出发前查预警,车票酒店尽量可改签。
+  - <b>高温湿热+强紫外线</b>:防晒补水,户外放上午和傍晚。

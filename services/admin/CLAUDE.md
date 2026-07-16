@@ -1467,8 +1467,159 @@ P0 支付 webhook 不涉及对象存储；STS 改造与 P0 完全独立。本节
 
 ---
 
+## §7.23 P0 支付 Day 1/2 实际落地与未闭环项（2026-07-15 Day 1 + 2026-07-16 Day 2 部分）
+
+### Day 1 已落地（commits ee38d06/ea98719/9b3c3e6/e9aeaa3）
+
+- **alembic 架构级引入**（admin 此前完全靠 `init_db()` 自动建表，无迁移历史）：`alembic.ini` / `alembic/env.py` / 首个 revision `20260715_cms_payment_webhook_p0`；
+- **3 张新表**：`cms_payment_idempotency`（11 列，部分唯一索引 `WHERE payment_id IS NOT NULL`）/ `cms_webhook_retry`（10 列，`idx_..._status ON (status, next_retry_at)`）/ `cms_order_card`（4 列，简化无 item_no/credential_ciphertext）；
+- **ProductOrder 7 状态机**：`status` 字段 `String(20) nullable=True server_default='pending'` + PG native ENUM `cms_order_status`（SQLite 退化为 String(20)）+ `effective_status`/`is_paid` 2 个 hybrid_property；
+- **pay_status 兼容窗口**：保留到 2026-09，`effective_status` 自动从 pay_status 回退；
+- **微信支付配置 + 4 新依赖**：`.env.example` +18 行（`PAYMENT_PROVIDER`/`WECHAT_PAY_*`）；`requirements.txt` +7 行（alembic/wechatpayv3/pycryptodome/cryptography）；
+- **263 行状态机测试**：`tests/test_product_order_status.py` 6 组（默认值/effective_status 优先级/7 值可写/is_paid/列存在性/端到端生命周期）。
+
+### Day 2 已部分落地（未提交到 mis-system HEAD e9aeaa3，工作树现状）
+
+- **`services/wechat_pay.py::WechatPayV3Gateway`**：回调 RSA-SHA256 验签 + ±300s 时间窗 + AES-256-GCM 解密 + `WechatNotify` DTO；**下单/退款/查单仍 `NotImplementedError`**；
+- **`services/payment_fulfillment.py`**（新建）：`confirm_payment()`（金额分校验 + 订单行锁 + 支付幂等 + 状态双写 + 优惠券/返佣）+ `issue_order_cards()`（多卡补发 + 批次行锁 + 单次 flush + 可重入）+ `WebhookRetry` 入队/退避/poller；
+- **`routes/cms/payments.py`**：由 14 行占位改为完整微信回调链路（验签→解密→幂等确认→发卡任务入队→BackgroundTasks→ACK）；
+- **`main.py::lifespan`**：启动 DB poller（WebhookRetry 后台扫描）；
+- **`routes/cms/orders.py::pay_order`**：已复用 `confirm_payment()` 与 `issue_order_cards()`；
+- **新测试**：`tests/test_wechat_pay.py` 7 项 + `tests/test_payment_fulfillment.py` 12 项（支付确认/幂等/金额/优惠券/多卡/库存/任务重试）。
+
+### Day 2 仍未闭环的 5 项 critical 缺口（**生产接入前必修**）
+
+1. **`set_gateway()` 未注入 lifespan**：全局 `gateway` 仍是 `MockGateway`；若只配置 `PAYMENT_PROVIDER=wechat`，同步 `/orders/{id}/pay` 会把 mock 成功标为 wechat 支付事实，**必须 fail-closed**；
+2. **平台证书 X.509 解析缺**：`WECHAT_PAY_PLATFORM_CERT_PATH` 当前通过 `load_pem_public_key()` 读取，若文件是真正 X.509 平台证书将无法解析；同时未读取/校验 `Wechatpay-Serial`，不支持平台证书轮换选择；
+3. **`parse_notify()` 异常未映射安全 4xx**：JSON/字段/AES 解密异常未统一映射为 4xx；**缺 payments 路由级回调测试**；
+4. **异常事件未持久化/告警**：微信支付确认冲突仅 ACK + 日志，未持久化异常事件/告警；重试耗尽仅把 job 置 `failed`，**未同步订单 `failed`、未告警**；`locked_at`/租约回收尚未启用；
+5. **mock 同步发卡失败无持久化重试**：仅返回 `issue_pending`，未创建持久化重试任务；真实 Native 下单/退款/查单 与 小额真单灰度**仍待商户资料**（`WECHAT_PAY_MCH_ID/APP_ID/API_V3_KEY`）。
+
+### §7.19-§7.22 草案 vs Day 1 实际偏差表
+
+| 维度 | §7.19 草案（pre-impl） | Day 1 实际 |
+|------|------------------------|------------|
+| 重试队列表名 | `cms_payment_retry_queue` | `cms_webhook_retry` |
+| 重试队列列 | job_type/max_attempts/locked_by/completed_at | 仅 attempts/next_retry_at/locked_at（更简） |
+| 幂等表 provider 列 | `provider` | `payment_provider` |
+| 幂等表 txn 列 | `transaction_id`/`event_id`/`event_type` | `payment_id`（nullable，无 event_id/event_type） |
+| 幂等唯一约束 | `UNIQUE(provider, event_id)` + `UNIQUE(provider, txn)` | **部分唯一索引** `WHERE payment_id IS NOT NULL` |
+| order_card 列 | item_no/credential_ciphertext/card_no/status/issued_at | 仅 order_id/card_id/created_at（多卡关联，无密文） |
+| order_no 字段 | 新增 + ULID/雪花 | **未新增** |
+| ReferralCommission UK | 补唯一约束 | **未补** |
+| status nullable | NOT NULL | **nullable=True** |
+| DROP pay_status | 后续移除 | **Day 1.1.1 明确保留** + 兼容窗口到 2026-09 |
+| 方言策略 | 笼述 PG ENUM/SQLite CHECK | **PG native ENUM `cms_order_status` / SQLite String(20)** + `_dialect_name()` 强校验 |
+
+> ⚠️ **§7.19-§7.22 是 P0 实施前设计草案存档**，与实际 Day 1/Day 2 落地有上述偏差，**以实际代码为准**。Day 2 实际代码多处未对照草案细化（例如 `payment_fulfillment.py` 已建，但与 §7.20 草案的"卡密码 AES-GCM 密文"+"卡号唯一键冲突重试"等细节未完全对齐，待 Day 2.5 校准）。
+
+### 36 项审计代码 vs 记忆偏差 4 处（2026-07-16 核对）
+
+| # | 路径 | 记忆描述 | 代码现状 | 影响 |
+|---|------|----------|----------|------|
+| 1 | `routes/auth.py` | 登录限流 | **未见显式登录限流**，仅 register 有 | 暴力破解风险（需补 limiter） |
+| 2 | `routes/auth.py` | 注册阈值 5/小时 | **实际 1000/小时，注释写 5/小时** | 文档/注释与代码脱节（需修注释） |
+| 3 | `tests/conftest.py` | session token 缓存 | **每测试重新登录**，未见缓存 | 测试性能下降，无功能影响 |
+| 4 | `app/main.py::lifespan` | `notifier.close_client()` 挂 shutdown | **未挂接** | httpx 连接池泄露（shutdown 时未关闭） |
+
+---
+
+## §7.24 TripGen 子域（2026-07-16 新增 admin 内部子域）
+
+### 定位
+
+**TripGen 是 admin 内部子域**（不单独生成模块 CLAUDE.md），提供"AI 设计行程 + 多格式产物导出"能力。Trip 模型为**单一数据源**，可派生 HTML、正文 PDF、图文 PDF、合并 PDF 四类产物。
+
+### 入口
+
+- **HTTP API**：`app/routes/tripgen.py`
+  - `GET /admin/api/v1/tripgen/example` — 返回样例 Trip 数据（调试用）
+  - `POST /admin/api/v1/tripgen/preview` — 预览（不写入磁盘）
+  - `POST /admin/api/v1/tripgen/generate` — 生成并返回服务器临时路径
+- **CLI**：`app/cli/tripgen.py`（与 HTTP 共用 service 层）
+- **数据/流水线**：`app/services/tripgen/`（11 个一方文件：pipeline/models/html_guide/pdf_body/...）
+
+### 核心设计
+
+- **Trip 单一数据源**：Day × N 行程节点 + 主题/季节/目的地/费用 4 类元数据；
+- **四类产物**：① HTML 指南（无需依赖）② 正文 PDF（reportlab）③ 图文 PDF（weasyprint + 中文字体）④ 合并 PDF（pypdf）；
+- **降级策略**：reportlab/weasyprint/pypdf 缺失时返回 HTML 或抛 503；
+- **依赖检测**：启动时 sniff 三套库是否可用，按能力组合提供服务；
+- **CLI 与 HTTP 共用 pipeline**：避免双实现漂移。
+
+### 当前未闭环风险
+
+- `generate` 返回**服务器临时绝对路径**，无 `/download` 接口、无 COS URL、无 TTL、无临时目录清理；
+- PDF 特殊依赖分支覆盖不足（`test_tripgen.py` 对 PDF 链低覆盖）；
+- 前端目前**未见 TripGen UI**（`apps/web/src/views/` 无 tripgen 目录），CLI 是唯一入口。
+
+### 关键文件
+
+- `app/routes/tripgen.py` — 3 API 路由
+- `app/services/tripgen/pipeline.py` — 主流水线
+- `app/services/tripgen/models.py` — Trip + Day + Node + Metadata
+- `tests/test_tripgen.py` — 主要测试
+- `tests/test_coverage_extra.py` — 补充覆盖
+
+---
+
+## §7.25 Office Engine 本地引擎（2026-07-16 与 oa-agent bridge 共用 routes/office.py）
+
+### 定位
+
+**Office Engine 是 admin 内部子域**，与 oa-agent 桥**共用** `app/routes/office.py`（11 端点 = 6 个 oa-agent 桥 + 5 个本地引擎）。oa-agent 是远程文档能力中心（docx_to_html / merge_template / read_*）；本地引擎补齐 PDF / Excel / PPTX / 模板填充 / 批处理 5 类重 CPU 操作。
+
+### 入口
+
+- **`app/services/office/engine.py`** — 6 核心函数：
+  1. `docx_to_pdf(input_path)` — docx → PDF（libreoffice/docx2pdf）
+  2. `html_to_pdf(html)` — HTML → PDF（weasyprint）
+  3. `json_to_excel(data)` — JSON → xlsx（openpyxl）
+  4. `data_to_pptx(data)` — 数据 → pptx（python-pptx）
+  5. `fill_template(template, vars)` — 模板填充（docxtpl/jinja2）
+  6. `batch_process(jobs)` — 批处理编排（多产物并发）
+- **`app/routes/office.py`** — 11 端点：
+  - 6 桥端点：`/office/{health,tools,read,preview,merge}/...`（透传 oa-agent `/tools/{name}`）
+  - 5 本地端点：`/office/pdf`、`/office/excel`、`/office/pptx`、`/office/form`、`/office/batch`
+
+### 当前未统一风险
+
+- **workspace 沙箱未统一**：本地 5 端点共用 `template/input_dir/output_dir` 但**无统一 workspace 边界校验**；
+- **重 CPU 同步阻塞**：PDF/PPT/Excel 同步任务直接跑在 async 路由中（未卸载到线程池/任务队列）；
+- **临时文件无生命周期**：未设 TTL、未自动清理，磁盘可能累积；
+- **特殊依赖分支覆盖不足**：`test_coverage_extra.py` 对 weasyprint/pptx/openpyxl 缺失分支覆盖低。
+
+### 与 oa-agent 桥的边界
+
+| 能力 | oa-agent 桥（远程） | 本地引擎 |
+|------|---------------------|----------|
+| docx 预览 | ✅ mammoth → html | ❌ |
+| 模板合并 | ✅ docxtpl | ✅ 通用 fill_template |
+| docx 读取 | ✅ read_docx | ❌ |
+| docx → PDF | ❌ | ✅ docx_to_pdf |
+| HTML → PDF | ❌ | ✅ html_to_pdf |
+| Excel 生成 | ❌ | ✅ json_to_excel |
+| PPTX 生成 | ❌ | ✅ data_to_pptx |
+| 批处理 | ❌ | ✅ batch_process |
+
+### 关键文件
+
+- `app/services/office/engine.py` — 6 核心函数
+- `app/services/office/bridge.py` — oa-agent 桥
+- `app/routes/office.py` — 11 端点
+- `app/cli/office.py` — CLI（与 HTTP 共用 service 层）
+- `tests/test_office.py` + `tests/test_office_bridge.py` + `tests/test_coverage_extra.py`
+
+---
+
 ## 变更记录 (Changelog)
 
+- 2026-07-16 13:42:20 — admin 文档校准（第六轮 init-architect + general-purpose 追加）：
+  - **新增 §7.23 P0 支付 Day 1/2 实际落地与未闭环项**：落地清单 + 5 项 critical 缺口 + §7.19-§7.22 草案 vs 实际偏差表（详见 §7.23）；
+  - **新增 §7.24 TripGen 子域**：Trip 单一数据源、3 API、HTML/PDF/图文/合并 PDF 四类产物、降级策略、临时路径未闭环风险（详见 §7.24）；
+  - **新增 §7.25 Office Engine 本地引擎**：6 核心函数、5 本地端点、与 oa-agent 桥的边界、workspace 沙箱/线程池/临时文件未统一风险（详见 §7.25）；
+  - **36 项审计代码 vs 记忆偏差 4 处**（详见 §7.23 末尾）：登录限流缺 / 注册阈值注释错 / conftest session 缓存缺 / notifier.close_client 未挂 lifespan；
+  - 顶部 Changelog 与底部变更记录同步；不修改 §7.19-§7.22 草案存档。
 - 2026-07-15 14:00:00 — P0 实施前精细深读（第五轮）：
   - **§7.19 P0 Day 1.1 alembic migration 详解**：草案 `20260715_cms_payment_webhook_p0.py`（admin 服务尚未启用 alembic，先 `alembic init` + 配 `env.py`）；含 ProductOrder status 迁移 + cms_payment_idempotency / cms_payment_retry_queue / cms_order_card 三张新表 + ReferralCommission 唯一约束；SQLite/PG 双兼容 + 部分唯一索引 `postgresql_where`；
   - **§7.20 发卡服务抽离方案**：新建 `services/payment_fulfillment.py` 领域服务（confirm_payment / issue_order_cards / claim_due_jobs / _pick_batch_with_stock）；行锁 + 库存校验 + 多卡 item_no 幂等 + 卡密码 AES-GCM 密文 + 卡号唯一键冲突重试；旧 `_issue_card` 同步路径作废；

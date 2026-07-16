@@ -78,6 +78,10 @@ async def update_review_status(
     session: AsyncSession = Depends(get_session),
     _=Depends(require_permission("cms:review:save")),
 ):
+    # MEDIUM：审核状态白名单（防非法值写入）
+    valid = {"pending", "approved", "rejected"}
+    if req.status not in valid:
+        raise HTTPException(400, f"非法状态，允许: {sorted(valid)}")
     r = await session.get(Review, review_id)
     if not r:
         raise HTTPException(404, "评论不存在")

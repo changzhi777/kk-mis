@@ -6,10 +6,11 @@ Phase 2：替换为 Hyperledger Fabric chaincode verifyCard 调用
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ... import cache
 from ...db import get_session
 from ...models import AssetCard
 
@@ -19,9 +20,17 @@ router = APIRouter(prefix="/api/v1/asset/cards/verify", tags=["asset-verify"])
 @router.get("/{unique_code}")
 async def verify_card(
     unique_code: str,
+    request: Request,
     session: AsyncSession = Depends(get_session),
 ):
-    """防伪核销：返回真伪 + 来源（Phase 1 mock，Phase 2 接 Fabric）"""
+    """防伪核销：返回真伪 + 来源（Phase 1 mock，Phase 2 接 Fabric）
+
+    H16：公开端点 IP 限流 30/min（防暴力枚举 unique_code / DoS）。
+    """
+    # H16 限流（fail-open：Redis 不可用放行，不阻塞业务）
+    ip = request.client.host if request.client else "unknown"
+    if not await cache.rate_limit_check(f"ratelimit:verify:{ip}", 30, 60):
+        raise HTTPException(429, "请求过于频繁，请稍后再试")
     if not unique_code or len(unique_code) != 64:
         raise HTTPException(400, "unique_code 必须是 64 位 hex 字符串")
 

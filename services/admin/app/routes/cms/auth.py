@@ -26,7 +26,8 @@ def _make_token(user_id: int) -> str:
     payload = {
         "sub": str(user_id),
         "type": "end_user",
-        "exp": datetime.utcnow() + timedelta(days=7),
+        # MEDIUM：原 7 天无吊销风险，缩至 12h（C 端重新登录成本低）
+        "exp": datetime.utcnow() + timedelta(hours=12),
     }
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 

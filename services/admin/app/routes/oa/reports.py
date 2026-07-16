@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...db import get_session
-from ...deps import get_current_user, require_permission
+from ...deps import get_current_user, get_user_permissions, is_super_admin, require_permission
 from ...models import User, WorkReport
 from ...schemas.oa import ReportCreate, ReportOut
 
@@ -61,11 +61,18 @@ async def list_all_reports(
 async def get_report(
     rid: int,
     session: AsyncSession = Depends(get_session),
-    _=Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ):
     r = await session.get(WorkReport, rid)
     if not r:
         raise HTTPException(404, "汇报不存在")
+    # IDOR 防护：仅本人 / 超管 / 持 oa:report:view 权限者可查；
+    # 他人汇报 403（防 id 枚举越权；oa:report:view 是汇报查阅管理权限）
+    if r.user_id != user.id:
+        if not await is_super_admin(user, session):
+            codes = await get_user_permissions(user.id, session)
+            if "oa:report:view" not in codes:
+                raise HTTPException(403, "无权查看该汇报")
     return ReportOut.model_validate(r)
 
 

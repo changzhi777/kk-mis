@@ -1,5 +1,5 @@
 """审计日志查看"""
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,6 +24,8 @@ async def list_audit(
     if method:
         stmt = stmt.where(AuditLog.method == method)
     if path:
+        if len(path) > 200:  # MEDIUM：防超长子串 DoS
+            raise HTTPException(400, "path 查询过长（≤200）")
         stmt = stmt.where(AuditLog.path.contains(path))
     if user_id:
         stmt = stmt.where(AuditLog.user_id == user_id)

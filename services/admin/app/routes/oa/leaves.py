@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...db import get_session
-from ...deps import get_current_user
+from ...deps import get_current_user, is_super_admin
 from ...models import ApprovalFlow, LeaveRequest, User
 from ...schemas.oa import LeaveCreate, LeaveOut
 from ...services.approval_engine import create_instance
@@ -60,9 +60,12 @@ async def list_leaves(
 async def get_leave(
     lid: int,
     session: AsyncSession = Depends(get_session),
-    _=Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ):
     lr = await session.get(LeaveRequest, lid)
     if not lr:
         raise HTTPException(404, "请假不存在")
+    # IDOR 防护：仅本人或超管可查；他人请假 403（防 id 枚举越权）
+    if lr.user_id != user.id and not await is_super_admin(user, session):
+        raise HTTPException(403, "无权查看该请假")
     return LeaveOut.model_validate(lr)

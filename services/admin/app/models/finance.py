@@ -66,7 +66,7 @@ class Voucher(Base):
     __tablename__ = "finance_vouchers"
 
     id = pk()
-    number = Column(String(32), nullable=False, index=True)  # 凭证编号（记-20260715-001）
+    number = Column(String(32), nullable=False, unique=True)  # 凭证编号（全局唯一，DB 层防并发重复）
     voucher_date = Column(DateTime, nullable=False, default=utcnow, index=True)
     summary = Column(String(200), nullable=True)
     status = Column(String(10), default="draft", nullable=False)  # draft / posted

@@ -17,11 +17,14 @@ from .cms import (
     InquiryLead,
     MediaAsset,
     Merchant,
+    OrderCard,
+    PaymentIdempotency,
     ProductOrder,
     Review,
     TourCustom,
     TourPass,
     TourProduct,
+    WebhookRetry,
 )
 from .member import MemberLevel, MemberStat, PointsLog
 from .oa import (
@@ -92,4 +95,10 @@ __all__ = [
     "Coupon",
     "Review",
     "EndUser",
+    "PaymentIdempotency",
+    "WebhookRetry",
+    "OrderCard",
+    "ReferralCommission",  # LOW：补 __all__ 导出（原漏）
+    "WithdrawalRequest",
+    "CardTransfer",
 ]

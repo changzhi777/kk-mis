@@ -4,7 +4,7 @@
 仅返回 status=published 的产品。
 """
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...db import get_session
@@ -22,6 +22,11 @@ from ...schemas.cms import (
 from ...utils import utcnow
 
 router = APIRouter(prefix="/api/v1/cms/products", tags=["cms-product"])
+
+
+def _escape_like(s: str) -> str:
+    """转义 LIKE/ILIKE 通配符（% _ \\），防通配注入与 DoS（MEDIUM）。"""
+    return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 async def _load_detail(session: AsyncSession, p: TourProduct) -> TourProductDetail:
@@ -80,9 +85,14 @@ async def get_product_by_slug(
     ).scalar_one_or_none()
     if not p or p.status != "published":
         raise HTTPException(404, "产品不存在或未发布")
-    # 浏览埋点 +1
-    p.view_count = (p.view_count or 0) + 1
+    # 浏览埋点 +1（MEDIUM：原子 UPDATE 防并发 lost update）
+    await session.execute(
+        update(TourProduct)
+        .where(TourProduct.id == p.id)
+        .values(view_count=func.coalesce(TourProduct.view_count, 0) + 1)
+    )
     await session.commit()
+    await session.refresh(p)  # 重载 view_count 供 detail（避免 expire 后访问触发 async lazy reload）
     detail = (await _load_detail(session, p)).model_dump()
     # 附加已审核通过的评论
     reviews = (
@@ -103,17 +113,20 @@ async def search_products(
     session: AsyncSession = Depends(get_session),
 ):
     """公开搜索（无需登录，仅 published，匹配 title/summary/destination/category/theme）"""
-    kw = f"%{q}%"
+    # MEDIUM：长度限制 + 通配符转义（防 ILIKE DoS 与通配注入）
+    if not q or len(q.strip()) < 1 or len(q) > 50:
+        raise HTTPException(400, "搜索词长度需在 1-50 之间")
+    kw = f"%{_escape_like(q)}%"
     items = (
         await session.execute(
             select(TourProduct)
             .where(
                 TourProduct.status == "published",
-                TourProduct.title.ilike(kw)
-                | TourProduct.summary.ilike(kw)
-                | TourProduct.destination.ilike(kw)
-                | TourProduct.category.ilike(kw)
-                | TourProduct.theme.ilike(kw),
+                TourProduct.title.ilike(kw, escape="\\")
+                | TourProduct.summary.ilike(kw, escape="\\")
+                | TourProduct.destination.ilike(kw, escape="\\")
+                | TourProduct.category.ilike(kw, escape="\\")
+                | TourProduct.theme.ilike(kw, escape="\\"),
             )
             .order_by(TourProduct.view_count.desc(), TourProduct.id.desc())
             .limit(20)

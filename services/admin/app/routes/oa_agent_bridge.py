@@ -94,12 +94,16 @@ async def list_skills(_user: User = Depends(get_current_user)):
 @router.get("/sessions")
 async def list_sessions(
     limit: int = 20,
-    _user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ):
-    """列最近 N 个 session（透传到 oa-agent /sessions）。"""
+    """列最近 N 个 session（透传到 oa-agent /sessions，带 user_id 供隔离）。"""
     try:
         async with httpx.AsyncClient(timeout=10) as cli:
-            r = await cli.get(f"{OA_AGENT_URL}/sessions", params={"limit": limit})
+            # LOW：透传 user_id 给 oa-agent 做会话隔离（oa-agent 侧按需过滤）
+            r = await cli.get(
+                f"{OA_AGENT_URL}/sessions",
+                params={"limit": limit, "user_id": user.id},
+            )
         return JSONResponse(r.json(), status_code=r.status_code)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"oa-agent 不可达: {exc}") from exc
@@ -108,12 +112,15 @@ async def list_sessions(
 @router.get("/sessions/{session_id}")
 async def get_session(
     session_id: str,
-    _user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ):
-    """读指定 session 的 trace（透传到 oa-agent /sessions/{id}）。"""
+    """读指定 session 的 trace（透传；归属校验由 oa-agent 侧按 user_id 执行）。"""
     try:
         async with httpx.AsyncClient(timeout=10) as cli:
-            r = await cli.get(f"{OA_AGENT_URL}/sessions/{session_id}")
+            r = await cli.get(
+                f"{OA_AGENT_URL}/sessions/{session_id}",
+                params={"user_id": user.id},
+            )
         return JSONResponse(r.json(), status_code=r.status_code)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"oa-agent 不可达: {exc}") from exc

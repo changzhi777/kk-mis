@@ -1,4 +1,5 @@
 """kk-cms 企业管理 + 财务 主应用"""
+import asyncio
 import logging
 import time
 from contextlib import asynccontextmanager
@@ -33,7 +34,15 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"DB init failed: {e}")
     await cache.init()  # Redis 缓存层（fail-open，失败不影响启动）
+    # 发卡重试 poller（P0 Day 2：扫描 WebhookRetry 到期任务兜底发卡）
+    from .services.payment_fulfillment import start_retry_poller
+    poller_task = asyncio.create_task(start_retry_poller())
     yield
+    poller_task.cancel()
+    try:
+        await poller_task
+    except asyncio.CancelledError:
+        pass
     await cache.close()
     await close_db()
     logger.info("kk-cms Admin 关闭")
@@ -67,14 +76,19 @@ for _r in all_routers:
 
 @app.middleware("http")
 async def audit_middleware(request: Request, call_next):
-    """审计中间件：记录写操作（POST/PUT/DELETE）"""
+    """审计中间件：记录写操作（POST/PUT/PATCH/DELETE）
+
+    MEDIUM 修复（2026-07-16）：
+    - 补 PATCH（原漏）
+    - 真实 IP 取 X-Forwarded-For（反代后 request.client.host 全是 nginx IP）
+    """
     start = time.time()
     response = await call_next(request)
     path = request.url.path
     if (
-        request.method in ("POST", "PUT", "DELETE")
+        request.method in ("POST", "PUT", "PATCH", "DELETE")
         and "/api/v1/" in path
-        and "/auth/" not in path
+        and "/auth/" not in path  # auth 操作不记日志（含密码等敏感字段）
     ):
         try:
             from .db import SessionLocal
@@ -87,6 +101,9 @@ async def audit_middleware(request: Request, call_next):
                 payload = decode_token(auth.split(" ", 1)[1])
                 if payload:
                     user_id = int(payload["sub"])
+            # 真实 IP：优先 X-Forwarded-For（反代场景），否则回退连接 IP
+            xff = request.headers.get("x-forwarded-for", "")
+            ip = xff.split(",")[0].strip() if xff else (request.client.host if request.client else None)
             async with SessionLocal() as s:
                 s.add(
                     AuditLog(
@@ -94,7 +111,7 @@ async def audit_middleware(request: Request, call_next):
                         method=request.method,
                         path=path,
                         status_code=response.status_code,
-                        ip=request.client.host if request.client else None,
+                        ip=ip,
                         duration_ms=int((time.time() - start) * 1000),
                     )
                 )

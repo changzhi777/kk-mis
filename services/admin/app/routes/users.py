@@ -165,6 +165,7 @@ async def delete_user(
         raise HTTPException(400, "不可删除超级管理员")
     await session.delete(u)
     await session.commit()
+    await cache.invalidate_user(user_id)  # MEDIUM：删用户失效权限/菜单缓存（原漏）
     return {"success": True}
 
 

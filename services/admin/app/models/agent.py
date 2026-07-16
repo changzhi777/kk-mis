@@ -11,7 +11,18 @@ from ..utils import utcnow
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, Index, Integer, Numeric, String
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    UniqueConstraint,
+)
 
 from .base import Base
 from .enterprise import pk
@@ -100,6 +111,11 @@ class ReferralCommission(Base):
     status = Column(String(20), default="pending")  # pending/settled/withdrawn
     settled_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=utcnow)
+
+    __table_args__ = (
+        # DB 层防重复返佣：同一订单只能产生一条推荐返佣（HIGH 3 修复）
+        UniqueConstraint("product_order_id", name="uq_referral_commission_order"),
+    )
 
 
 class WithdrawalRequest(Base):

@@ -118,6 +118,23 @@ class Settings(BaseModel):
     cos_download_expire: int = 0     # 下载 URL 有效期（秒）
     cos_max_object_mb: int = 0       # 单对象最大字节（MB）
 
+    # ── 支付网关（P0 CMS 真支付，2026-07-15 Day 2 引入）──
+    payment_provider: str = ""  # mock|wechat|alipay
+    payment_signature_tolerance_seconds: int = 0  # 回调时间窗（默认 300s 防重放）
+    payment_idempotency_ttl_seconds: int = 0  # 幂等记录保留（默认 604800 = 7 天）
+    payment_retry_poll_seconds: int = 0  # 重试 poller 间隔（默认 30s）
+    # 微信支付 v3（生产 PAYMENT_PROVIDER=wechat 时必配齐，否则 fail-fast）
+    wechat_pay_mch_id: str = ""
+    wechat_pay_app_id: str = ""
+    wechat_pay_api_v3_key: str = ""
+    wechat_pay_platform_cert_path: str = ""
+    wechat_pay_mch_private_key_path: str = ""
+    wechat_pay_notify_url: str = ""
+    # 支付宝（预留，暂不启用）
+    alipay_app_id: str = ""
+    alipay_public_key_path: str = ""
+    alipay_private_key_path: str = ""
+
     # 日志
     log_level: str = ""
 
@@ -169,6 +186,20 @@ class Settings(BaseModel):
             cos_download_expire=_env_int("COS_DOWNLOAD_EXPIRE", 600),
             cos_max_object_mb=_env_int("COS_MAX_OBJECT_MB", 500),
             log_level=_env("LOG_LEVEL", "INFO"),
+            # ── 支付网关 ──
+            payment_provider=_env("PAYMENT_PROVIDER", "mock"),
+            payment_signature_tolerance_seconds=_env_int("PAYMENT_SIGNATURE_TOLERANCE_SECONDS", 300),
+            payment_idempotency_ttl_seconds=_env_int("PAYMENT_IDEMPOTENCY_TTL_SECONDS", 604800),
+            payment_retry_poll_seconds=_env_int("PAYMENT_RETRY_POLL_SECONDS", 30),
+            wechat_pay_mch_id=_env("WECHAT_PAY_MCH_ID", ""),
+            wechat_pay_app_id=_env("WECHAT_PAY_APP_ID", ""),
+            wechat_pay_api_v3_key=_env("WECHAT_PAY_API_V3_KEY", ""),
+            wechat_pay_platform_cert_path=_env("WECHAT_PAY_PLATFORM_CERT_PATH", ""),
+            wechat_pay_mch_private_key_path=_env("WECHAT_PAY_MCH_PRIVATE_KEY_PATH", ""),
+            wechat_pay_notify_url=_env("WECHAT_PAY_NOTIFY_URL", ""),
+            alipay_app_id=_env("ALIPAY_APP_ID", ""),
+            alipay_public_key_path=_env("ALIPAY_PUBLIC_KEY_PATH", ""),
+            alipay_private_key_path=_env("ALIPAY_PRIVATE_KEY_PATH", ""),
         )
 
     @model_validator(mode="after")
@@ -192,6 +223,25 @@ class Settings(BaseModel):
             )
         if self.db_driver == "postgres" and not self.postgres_password:
             errors.append("DB_DRIVER=postgres 但 POSTGRES_PASSWORD 为空")
+        # ── 支付 fail-fast：wechat 模式必须配齐商户密钥（资金安全）──
+        if self.payment_provider == "wechat":
+            missing_wechat = [
+                name
+                for name, val in (
+                    ("WECHAT_PAY_MCH_ID", self.wechat_pay_mch_id),
+                    ("WECHAT_PAY_APP_ID", self.wechat_pay_app_id),
+                    ("WECHAT_PAY_API_V3_KEY", self.wechat_pay_api_v3_key),
+                    ("WECHAT_PAY_PLATFORM_CERT_PATH", self.wechat_pay_platform_cert_path),
+                    ("WECHAT_PAY_MCH_PRIVATE_KEY_PATH", self.wechat_pay_mch_private_key_path),
+                )
+                if not val
+            ]
+            if missing_wechat:
+                errors.append(
+                    "PAYMENT_PROVIDER=wechat 但缺失："
+                    + "、".join(missing_wechat)
+                    + "（接真支付必须配齐商户号/AppID/API v3 Key/平台证书/商户私钥）"
+                )
         if errors:
             raise ValueError(
                 "生产模式配置不安全，启动拒绝：\n  - " + "\n  - ".join(errors)

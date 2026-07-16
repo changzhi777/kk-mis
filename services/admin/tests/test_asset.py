@@ -79,3 +79,129 @@ def test_card_type_supports_all_4_kinds(client, auth_header):
         )
         assert r.status_code == 200, f"类型 {kind} 建失败: {r.text}"
         assert r.json()["type"] == kind
+
+
+# ── H15（2026-07-16）：卡转赠两步确认状态机 ──────────────────────────────
+
+
+def _login_headers(client, username: str, password: str) -> dict:
+    """辅助：登录拿任意用户的 auth header"""
+    r = client.post(
+        "/admin/api/v1/auth/login",
+        json={"username": username, "password": password},
+    )
+    assert r.status_code == 200, f"login {username} failed: {r.text}"
+    return {"Authorization": f"Bearer {r.json()['access_token']}"}
+
+
+def _create_receiver(client, h, prefix="rcv"):
+    """辅助：创建一个普通用户（接收人）并返回 (id, username, password)"""
+    import uuid
+
+    username = f"{prefix}_{uuid.uuid4().hex[:6]}"
+    password = "pass1234"
+    u = client.post(
+        "/admin/api/v1/users",
+        json={"username": username, "password": password, "name": "接收人"},
+        headers=h,
+    ).json()
+    return u["id"], username, password
+
+
+def test_transfer_card_pending_then_accept(client, auth_header):
+    """H15：发起转赠 status=pending + holder 不变；接收人 accept 后 holder 转移"""
+    h = auth_header
+    uid2, uname2, pwd2 = _create_receiver(client, h)
+    card_no, card_id = _create_and_issue(client, h)
+
+    # 发起前 holder
+    holder_before = client.get(
+        "/admin/api/v1/asset/cards", params={"keyword": card_no}, headers=h
+    ).json()["items"][0]["holder_user_id"]
+
+    # 第 1 步：admin 发起 transfer → pending
+    r = client.post(
+        "/admin/api/v1/asset/redemptions/transfer-card",
+        json={"card_id": card_id, "to_user_id": uid2},
+        headers=h,
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["status"] == "pending"
+    transfer_id = body["transfer_id"]
+
+    # 关键：holder 未立即转移
+    holder_mid = client.get(
+        "/admin/api/v1/asset/cards", params={"keyword": card_no}, headers=h
+    ).json()["items"][0]["holder_user_id"]
+    assert holder_mid == holder_before, "转赠发起后 holder 不应立即变化"
+
+    # 第 2 步：接收人 accept
+    h2 = _login_headers(client, uname2, pwd2)
+    r2 = client.post(
+        f"/admin/api/v1/asset/redemptions/transfer-card/{transfer_id}/accept",
+        headers=h2,
+    )
+    assert r2.status_code == 200
+    assert r2.json()["status"] == "accepted"
+
+    # holder 已转移到接收人
+    holder_after = client.get(
+        "/admin/api/v1/asset/cards", params={"keyword": card_no}, headers=h
+    ).json()["items"][0]["holder_user_id"]
+    assert holder_after == uid2, "accept 后 holder 应为接收人"
+
+
+def test_transfer_card_rejected_holder_unchanged(client, auth_header):
+    """H15：接收人 reject → status=rejected + holder 保持原持卡人"""
+    h = auth_header
+    uid2, uname2, pwd2 = _create_receiver(client, h, prefix="rej")
+    card_no, card_id = _create_and_issue(client, h)
+
+    holder_before = client.get(
+        "/admin/api/v1/asset/cards", params={"keyword": card_no}, headers=h
+    ).json()["items"][0]["holder_user_id"]
+
+    r = client.post(
+        "/admin/api/v1/asset/redemptions/transfer-card",
+        json={"card_id": card_id, "to_user_id": uid2},
+        headers=h,
+    )
+    transfer_id = r.json()["transfer_id"]
+
+    h2 = _login_headers(client, uname2, pwd2)
+    r2 = client.post(
+        f"/admin/api/v1/asset/redemptions/transfer-card/{transfer_id}/reject",
+        headers=h2,
+    )
+    assert r2.status_code == 200
+    assert r2.json()["status"] == "rejected"
+
+    holder_after = client.get(
+        "/admin/api/v1/asset/cards", params={"keyword": card_no}, headers=h
+    ).json()["items"][0]["holder_user_id"]
+    assert holder_after == holder_before, "reject 后 holder 不应变"
+
+
+def test_transfer_card_wrong_receiver_forbidden(client, auth_header):
+    """H15：非接收人不可 accept/reject（403）"""
+    h = auth_header
+    uid2, _, _ = _create_receiver(client, h, prefix="rcv2")
+    # 第三个用户（非接收人）
+    uid3, uname3, pwd3 = _create_receiver(client, h, prefix="rcv3")
+    card_no, card_id = _create_and_issue(client, h)
+
+    r = client.post(
+        "/admin/api/v1/asset/redemptions/transfer-card",
+        json={"card_id": card_id, "to_user_id": uid2},
+        headers=h,
+    )
+    transfer_id = r.json()["transfer_id"]
+
+    # uid3 尝试 accept → 403
+    h3 = _login_headers(client, uname3, pwd3)
+    r3 = client.post(
+        f"/admin/api/v1/asset/redemptions/transfer-card/{transfer_id}/accept",
+        headers=h3,
+    )
+    assert r3.status_code == 403

@@ -227,8 +227,18 @@ class ProductOrderOut(BaseModel):
     paid_at: Optional[datetime] = None
     transaction_id: Optional[str] = None
     issued_card_no: Optional[str] = None
-    issued_card_password: Optional[str] = None
     created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ProductOrderDetailOut(ProductOrderOut):
+    """单订单详情（含 issued_card_password，支付/发卡后一次性返回买家）。
+
+    list/export 不用此 schema，防批量泄露卡密码（HIGH 1 修复）。
+    """
+
+    issued_card_password: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 

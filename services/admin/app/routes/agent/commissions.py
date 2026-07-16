@@ -4,7 +4,7 @@
 """
 from ...utils import utcnow
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -62,16 +62,16 @@ async def list_records(
     # data_scope=self 数据隔离：仅返回自己代理的返佣记录
     scope, my_agent_ids = await get_user_scope(user, session)
     stmt = select(CommissionRecord)
+    # MEDIUM：status 过滤对 self/all 都生效（原 self 分支忽略 status）
+    if status:
+        stmt = stmt.where(CommissionRecord.status == status)
     if scope == "self":
         if not my_agent_ids:
             return {"items": [], "total": 0}
         stmt = stmt.where(CommissionRecord.agent_id.in_(my_agent_ids))
-    else:
-        # all：尊重用户传的 status/agent_id 过滤
-        if status:
-            stmt = stmt.where(CommissionRecord.status == status)
-        if agent_id:
-            stmt = stmt.where(CommissionRecord.agent_id == agent_id)
+    elif agent_id:
+        # all：尊重用户传的 agent_id 过滤（self 强制限 my_agent_ids）
+        stmt = stmt.where(CommissionRecord.agent_id == agent_id)
     total = (
         await session.execute(select(func.count()).select_from(stmt.subquery()))
     ).scalar_one()
@@ -152,9 +152,13 @@ async def dashboard(
 async def settle(
     agent_id: int,
     session: AsyncSession = Depends(get_session),
-    _=Depends(require_permission("agent:commission:save")),
+    user=Depends(require_permission("agent:commission:save")),
 ):
     """结算某代理的 pending 分润 → settled（仅 all 角色可调，代理商无 commission:save 权限）"""
+    # LOW：data_scope=self 时校验 agent_id 属于自己（防越权结算他人代理）
+    scope, my_agent_ids = await get_user_scope(user, session)
+    if scope == "self" and agent_id not in (my_agent_ids or []):
+        raise HTTPException(403, "无权结算此代理")
     records = (
         await session.execute(
             select(CommissionRecord).where(

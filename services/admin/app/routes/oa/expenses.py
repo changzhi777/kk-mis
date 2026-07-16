@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...db import get_session
-from ...deps import get_current_user
+from ...deps import get_current_user, is_super_admin
 from ...models import ApprovalFlow, ExpenseRequest, User
 from ...schemas.oa import ExpenseCreate, ExpenseOut
 from ...services.approval_engine import create_instance
@@ -95,9 +95,12 @@ async def export_expenses(
 async def get_expense(
     eid: int,
     session: AsyncSession = Depends(get_session),
-    _=Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ):
     er = await session.get(ExpenseRequest, eid)
     if not er:
         raise HTTPException(404, "报销不存在")
+    # IDOR 防护：仅本人或超管可查；他人报销 403（防 id 枚举越权）
+    if er.user_id != user.id and not await is_super_admin(user, session):
+        raise HTTPException(403, "无权查看该报销")
     return ExpenseOut.model_validate(er)

@@ -1,9 +1,61 @@
 """审批工作流引擎（流转 + 记录 + 业务状态同步）"""
 import json
+from typing import Any, Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models import ApprovalFlow, ApprovalInstance, ApprovalRecord, ExpenseRequest, LeaveRequest
+
+# 节点 approver_type 合法值（与 models/oa.py::ApprovalFlow.nodes_config 注释对齐）
+# 新增类型必须显式加入此白名单，否则 _check_approver_authority 会拒绝（防配置错误短路放行）
+_VALID_APPROVER_TYPES = {"user", "leader"}
+
+
+def _parse_nodes(flow: ApprovalFlow) -> list[dict[str, Any]]:
+    """解析 + 校验 nodes_config（MEDIUM：原 json.loads 无结构校验）。
+
+    nodes_config 必须是非空 list[dict]，每项 approver_type 在白名单内。
+    非法配置在解析阶段即拒绝（而非等到 _check_approver_authority 运行时短路）。
+    """
+    try:
+        nodes = json.loads(flow.nodes_config)
+    except (json.JSONDecodeError, TypeError) as e:
+        raise ValueError(f"flow {flow.id} nodes_config 非法 JSON: {e}")
+    if not isinstance(nodes, list) or not nodes:
+        raise ValueError(f"flow {flow.id} nodes_config 必须是非空 list")
+    for i, node in enumerate(nodes):
+        if not isinstance(node, dict):
+            raise ValueError(f"flow {flow.id} node[{i}] 非 dict")
+        if node.get("approver_type") not in _VALID_APPROVER_TYPES:
+            raise ValueError(
+                f"flow {flow.id} node[{i}] approver_type 非法: {node.get('approver_type')!r}"
+            )
+    return nodes
+
+
+def _check_approver_authority(
+    node: Optional[dict[str, Any]], approver_id: int
+) -> Optional[str]:
+    """校验 approver_id 是否有权处理当前节点。
+
+    返回错误消息（拒绝原因）；返回 None 表示通过。安全默认：拒绝优先。
+
+    - node is None → 拒绝（实例已越过末尾节点 / nodes_config 被篡改 / current_node 越界）
+    - approver_type 不在白名单 → 拒绝（未知类型不可静默放行）
+    - approver_type == "user" → 精确匹配 node.approver_id
+    - approver_type == "leader" → 暂按"任意登录用户"放行（语义上应由部门/上级关系判定，
+      当前路由层 oa/approvals.py 只做 get_current_user，未要求 oa:approval:save 权限；
+      如需收紧请在路由层加 require_permission，而非在此放宽）
+    """
+    if node is None:
+        return "当前节点无效或已无更多审批节点"
+    approver_type = node.get("approver_type")
+    if approver_type not in _VALID_APPROVER_TYPES:
+        return f"未知的审批人类型: {approver_type!r}"
+    if approver_type == "user" and approver_id != node.get("approver_id"):
+        return "您不是当前节点的审批人"
+    # leader 类型暂按任意登录用户可审（与历史行为兼容；收紧请加路由层权限校验）
+    return None
 
 
 async def create_instance(
@@ -41,11 +93,12 @@ async def approve(
     if not inst or inst.status != "pending":
         return None, "实例不存在或已结束"
     flow = await session.get(ApprovalFlow, inst.flow_id)
-    nodes = json.loads(flow.nodes_config)
+    nodes = _parse_nodes(flow)
     # 校验：当前节点必须由该用户审批（防越权审批他人单据）
     node = nodes[inst.current_node] if inst.current_node < len(nodes) else None
-    if node and node.get("approver_type") == "user" and approver_id != node.get("approver_id"):
-        return None, "您不是当前节点的审批人"
+    err = _check_approver_authority(node, approver_id)
+    if err:
+        return None, err
     session.add(
         ApprovalRecord(
             instance_id=inst.id, node=inst.current_node,
@@ -67,10 +120,11 @@ async def reject(
     if not inst or inst.status != "pending":
         return None, "实例不存在或已结束"
     flow = await session.get(ApprovalFlow, inst.flow_id)
-    nodes = json.loads(flow.nodes_config)
+    nodes = _parse_nodes(flow)
     node = nodes[inst.current_node] if inst.current_node < len(nodes) else None
-    if node and node.get("approver_type") == "user" and approver_id != node.get("approver_id"):
-        return None, "您不是当前节点的审批人"
+    err = _check_approver_authority(node, approver_id)
+    if err:
+        return None, err
     session.add(
         ApprovalRecord(
             instance_id=inst.id, node=inst.current_node,

@@ -117,8 +117,10 @@ async def serve_file(filename: str):
     Phase 0 仅支持 local backend（Storage backend 切 cos 后由 Phase 1 重定向到此路由逻辑调整）
     """
     safe = _safe_filename(filename)
-    path = (LEGACY_UPLOAD_DIR / safe).resolve()
-    if not str(path).startswith(str(LEGACY_UPLOAD_DIR.resolve())):
+    upload_root = LEGACY_UPLOAD_DIR.resolve()
+    path = (upload_root / safe).resolve()
+    # LOW：用 is_relative_to 替代 startswith（防前缀相似目录绕过，如 uploads2/）
+    if not path.is_relative_to(upload_root):
         raise HTTPException(400, "非法路径")
     if not path.is_file():
         raise HTTPException(404, "文件不存在")

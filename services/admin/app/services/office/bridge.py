@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import os
+import re
 from typing import Any
 
 import httpx
@@ -18,7 +19,15 @@ OA_AGENT_URL = os.environ.get("OA_AGENT_URL", "http://127.0.0.1:9001")
 _TIMEOUT_LIST = 10.0
 _TIMEOUT_INVOKE = 60.0
 
-# office 场景关心的 oa-agent 工具白名单（health 报告用）
+# 工具名白名单正则：只允许小写字母/数字/下划线；防止 `../health` 等路径注入到 URL
+# （HIGH 10：invoke 拼 URL 前先校验，office.py /tools 调用层再叠 OFFICE_TOOLS 白名单）
+_TOOL_NAME_RE = re.compile(r"^[a-z0-9_]+$")
+
+# office 场景关心的 oa-agent 工具白名单：
+# - health() 报告这些工具的可用情况
+# - office.py /tools POST 端点用此集合做白名单校验（HIGH 9）
+# 注意：`docx_to_html` + `merge_template` 是 office.py /preview + /merge 硬编码调用的
+# 合法工具，必须包含，否则 /tools 透传时白名单会漏判
 OFFICE_TOOLS = [
     "read_md",
     "read_pdf",
@@ -29,6 +38,8 @@ OFFICE_TOOLS = [
     "write_pdf",
     "write_docx",
     "excel_write",
+    "docx_to_html",
+    "merge_template",
 ]
 
 
@@ -59,10 +70,20 @@ async def invoke(
     """POST oa-agent /tools/{name} — 直接调用工具（绕过 LLM）。
 
     返回规整后的 ``{tool, ok, error, result}``：
+    - tool_name 非法（含路径分隔/点号等）→ ValueError
     - oa-agent 404（工具不存在）→ ok=False + error
     - oa-agent 200 + ok=False（工具内部错误）→ 透传
     - oa-agent 200 + ok=True → 透传
+
+    **HIGH 10 修复**：在拼 URL 前对 tool_name 做正则白名单校验，防止
+    `../health`、`/admin/..`、`%2e%2e` 等路径注入访问 oa-agent 非预期端点。
+    调用方（office.py /tools）额外用 OFFICE_TOOLS 做语义白名单，本层只防注入。
     """
+    if not isinstance(tool_name, str) or not _TOOL_NAME_RE.match(tool_name):
+        # 不 raise HTTPException（service 层不该知道 HTTP），交由路由层翻译
+        raise ValueError(
+            f"非法 tool_name: {tool_name!r}（仅允许小写字母/数字/下划线）"
+        )
     payload: dict[str, Any] = {"args": args}
     if session_id:
         payload["session_id"] = session_id

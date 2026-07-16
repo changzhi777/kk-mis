@@ -106,3 +106,24 @@ async def invalidate_all_users() -> None:
             await _client.delete(key)
     except Exception as e:
         logger.warning("cache.invalidate_all_users failed: %s", e)
+
+
+async def rate_limit_check(key: str, max_count: int, window_seconds: int = 60) -> bool:
+    """固定窗口限流（H16/H17）：返回 True=允许，False=超限。
+
+    - 首次访问 INCR=1 时设置 TTL；
+    - Redis 不可用 → fail-open 返回 True（与 cache 模块整体容错策略一致，限流降级不阻塞业务）；
+    - 异常 → fail-open 返回 True（限流不应成为单点故障）。
+
+    key 建议格式：`ratelimit:{endpoint}:{ip}`，如 `ratelimit:verify:1.2.3.4`。
+    """
+    if not _client:
+        return True
+    try:
+        count = await _client.incr(key)
+        if count == 1:
+            await _client.expire(key, window_seconds)
+        return count <= max_count
+    except Exception as e:
+        logger.warning("cache.rate_limit_check %s failed: %s", key, e)
+        return True

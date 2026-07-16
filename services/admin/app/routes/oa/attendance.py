@@ -5,7 +5,7 @@
 - 18:00 前下班 → early（早退）
 """
 import io
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -25,6 +25,19 @@ router = APIRouter(prefix="/api/v1/oa/attendance", tags=["oa-attendance"])
 WORK_START_HOUR = 9
 WORK_END_HOUR = 18
 
+# 考勤按东八区（Asia/Shanghai）本地时间判定，避免服务器时区漂移导致打卡状态错（MEDIUM）
+_CST = timezone(timedelta(hours=8))
+
+
+def _now_cst() -> datetime:
+    """当前东八区时间（naive，适配 Attendance DateTime 列；按本地时间判迟到/早退）。"""
+    return datetime.now(_CST).replace(tzinfo=None)
+
+
+def _today_cst() -> date:
+    """当前东八区日期（打卡按本地日归属）。"""
+    return _now_cst().date()
+
 
 @router.post("/clock-in", response_model=AttendanceOut)
 async def clock_in(
@@ -32,7 +45,7 @@ async def clock_in(
     user: User = Depends(get_current_user),
 ):
     """上班打卡（每日仅一次）"""
-    today = date.today()
+    today = _today_cst()
     att = (
         await session.execute(
             select(Attendance).where(
@@ -42,7 +55,7 @@ async def clock_in(
     ).scalar_one_or_none()
     if att and att.clock_in:
         raise HTTPException(400, "今日已上班打卡")
-    now = datetime.now()
+    now = _now_cst()
     is_late = now.hour > WORK_START_HOUR or (
         now.hour == WORK_START_HOUR and now.minute > 0
     )
@@ -64,7 +77,7 @@ async def clock_out(
     user: User = Depends(get_current_user),
 ):
     """下班打卡（须先上班打卡，计算工时）"""
-    today = date.today()
+    today = _today_cst()
     att = (
         await session.execute(
             select(Attendance).where(
@@ -76,7 +89,7 @@ async def clock_out(
         raise HTTPException(400, "请先上班打卡")
     if att.clock_out:
         raise HTTPException(400, "今日已下班打卡")
-    now = datetime.now()
+    now = _now_cst()
     att.clock_out = now
     # 早退覆盖状态（迟到不因准点下班而清除）
     if now.hour < WORK_END_HOUR:
@@ -93,7 +106,7 @@ async def today_record(
     user: User = Depends(get_current_user),
 ):
     """今日打卡状态（前端打卡卡片用）"""
-    today = date.today()
+    today = _today_cst()
     att = (
         await session.execute(
             select(Attendance).where(
@@ -204,5 +217,5 @@ def _parse_month(month: str | None) -> tuple[int, int]:
             return y, m
         except Exception:
             pass
-    t = date.today()
+    t = _today_cst()
     return t.year, t.month

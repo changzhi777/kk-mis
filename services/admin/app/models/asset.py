@@ -89,12 +89,19 @@ class AssetRedemption(Base):
 
 
 class CardTransfer(Base):
-    """卡券转赠记录（V5，2026-07-13 深度升级）"""
+    """卡券转赠记录（V5，2026-07-13 深度升级；H15 2026-07-16 改为接收人确认状态机）
+
+    状态机：pending（发起转赠，未实际转 holder）
+        → accepted（接收人确认，holder 转移到 to_user_id）
+        → rejected（接收人拒绝，holder 保持 from_user_id）
+        → expired（超过 7 天未确认，管理端取消；暂不实现定时，状态注释保留）
+    旧值 completed/reverted 为 H15 前遗留，不再产生新记录。
+    """
     __tablename__ = "card_transfer"
     id = pk()
     card_id = Column(BigInteger, ForeignKey("asset_card.id"), nullable=False, index=True)
     from_user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False)
     to_user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False)
-    status = Column(String(20), default="completed")  # completed/reverted
+    status = Column(String(20), default="pending", nullable=False)  # pending/accepted/rejected/expired
     remark = Column(String(200), nullable=True)
     created_at = Column(DateTime, default=utcnow)
