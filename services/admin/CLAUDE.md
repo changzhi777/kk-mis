@@ -1612,8 +1612,149 @@ P0 支付 webhook 不涉及对象存储；STS 改造与 P0 完全独立。本节
 
 ---
 
+## §7.26 P0 Day 2 实施闭环（2026-07-16 commit `a530537` 收官）
+
+### 4 项 critical 缺口全部修复
+
+| # | 缺口 | Commit | 关键改动 | 测试 |
+|---|---|---|---|---|
+| 1 | `set_gateway()` 未注入 lifespan (fail-closed) | `3b82c55` | `build_gateway_from_settings` 4 路径 (mock/wechat/alipay/unknown) + lifespan fail-closed raise (systemd 非零退出) | 14 新 + 66 P0 回归 |
+| 2 | WECHAT_PAY_PLATFORM_CERT_PATH X.509 解析 + Wechatpay-Serial | `308199f` | `cryptography.x509.load_pem_x509_certificate` + 3 种加载 (platform_certs dict / platform_cert_dir / platform_cert_path) + `verify_callback` Serial 校验 | 10 新 + 21 回归 |
+| 3 | parse_notify 异常未统一映射安全 4xx | `45ac695` | 7 个业务异常类 (WechatNotifyError 基类 + 6 子类 http_status 401/400/409) + `parse_notify_safe` 分阶段 raise + Redis NX 重放检测 + 路由异常映射 | 10 新 + 77 回归 |
+| 4 | 异常持久化 + 告警 + locked_at 租约 | `08835b7` | `claim_pending_jobs` SELECT FOR UPDATE SKIP LOCKED + 5min 租约 + `PaymentExceptionEvent` 表 + 3 Prometheus 指标 + 同步订单 failed + alembic revision `20260715_cms_payment_exception_event_p1` | 10 新 + 12 回归 |
+
+### 第 5 项缺口（mock 同步发卡失败持久化 + 真 Native pay/refund/query）
+
+⏸ **未做 — 需商户资料**：`WECHAT_PAY_MCH_ID/APP_ID/API_V3_KEY`。
+Gateway fail-closed 已就绪（commit 3b82c55），配置补齐后即可实施。
+
+### 关键设计决策
+
+- **P0 #1 fail-closed（拒绝启动）**：资金关键路径静默降级比显式崩溃更危险；systemd restart loop 立即可见
+- **P0 #4 SKIP LOCKED + locked_at 租约**：多实例 worker 不重复处理，5 分钟默认租约可重领过期
+- **P0 #3 异常类分层**：基类 `http_status=400` 默认 + 子类覆盖（401 鉴权 / 409 重放 / 400 内容），路由 `except WechatNotifyError as e` 兜底用 `e.http_status`
+
+### B + C 自动合并奇迹
+
+Agent B (308199f X.509) + Agent C (45ac695 parse_notify) **都修改 `app/services/wechat_pay.py`**：
+- B 改顶部（证书加载 + verify_callback，+223 行）
+- C 改中下部（7 异常类 + parse_notify_safe，+184 行）
+- git 自动合并成功，**零 conflict**
+- 最终 `wechat_pay.py` 530 行，两套功能完美共存
+
+---
+
+## §7.27 test isolation 误诊修正 + TripGen lazy import + 测试基线重置
+
+### TripGen lazy import（commit `d8dc562`）
+
+#### 回归 bug
+
+round-6 合并 `0fa4469` 引入：
+- `app/services/tripgen/__init__.py` 顶层 `from . import config, pipeline, models`
+- `pipeline.py` 顶层 `from . import fonts, pdf_body, html_guide, merge`
+- 这些子模块在模块顶层 `import reportlab` / `weasyprint` / `pypdf`
+- 导致 `tests/conftest.py::from app.main import app` 直接挂
+- **整个 admin 测试套件无法启动**（所有测试"挂"）
+
+#### 修复
+
+按 §7.24 设计意图"字体/weasyprint 缺失时降级"：
+- `__init__.py` 仅导出 `config` + `models`（不导入 pipeline）
+- `pipeline.py` 用 `importlib.import_module(f".{name}", __name__)` 动态加载 PDF 子模块
+- 缺 PDF 库时跳过对应步骤：
+  - 缺 reportlab → 跳过正文 PDF
+  - 缺 weasyprint → 跳过图文 PDF
+  - 缺 pypdf → 跳过合并
+  - 中文字体缺失 → 跳过正文 PDF
+- HTML 攻略总是先产出（不依赖 PDF）
+
+#### 教训
+
+**新模块导入必须 lazy import**：
+- 测试 fixture `from app.main import app` 会触发所有顶层 import
+- 子模块硬依赖可选库 → 整个测试套件挂掉
+- 必须 lazy import + fail-soft（运行时按需加载 + 缺包优雅降级）
+
+### Test isolation 误诊修正（commit `a530537`）
+
+#### 历史误判
+
+之前几轮报告的 "128 errors / 16 failed test isolation 问题" 是**历史状态**，**已被完全消除**。
+当前实测 6 种 isolation 模式（fixture 缺失 / db 污染 / 导入污染 / session 泄漏 / 顺序依赖 / event loop 冲突）一一核查均无。
+
+#### 根因（conftest 设计）
+
+```python
+@pytest.fixture(scope="session")
+def client():
+    """会话级 TestClient（lifespan 触发 init_db + seed admin/admin1234）"""
+    with TestClient(app) as c:
+        yield c
+    # 清理测试库
+    for p in ("./test.db",):
+        if os.path.exists(p):
+            os.remove(p)
+
+@pytest.fixture  # 默认 function scope
+def auth_header(client):
+    """登录拿 token"""
+    r = client.post("/admin/api/v1/auth/login",
+                    json={"username": "admin", "password": "admin1234"})
+    token = r.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+```
+
+**鲁棒三件套**：
+1. `lifespan` 幂等（`init_db` + `seed_initial_data` 内有 if-not-exists 判断）
+2. `seed_initial_data()` 内部 if-not-exists 防止重复
+3. 函数级 `auth_header`（不污染 session client）
+
+#### 真正的剩余 3 个 fail = 环境依赖
+
+| 测试 | 根因 | 修复 |
+|---|---|---|
+| `test_data_to_excel_dict_rows` + `test_data_to_excel_list_rows_with_headers` | 缺 `openpyxl` | `pip install openpyxl` + `requirements.txt` 加 `openpyxl>=3.1` |
+| `test_html_to_pdf_or_skip` | macOS 缺 `libgobject-2.0-0` (GTK 系统库) | 测试 `except ImportError` → `except (ImportError, OSError)` |
+
+### 测试基线重置
+
+```
+PYTHONPATH=. python -m pytest tests/ -q --tb=short
+→ 418 passed, 8 skipped, 0 failed in 283.69s (0:04:43)
+```
+
+| 维度 | 历史 | 本轮末 |
+|---|---|---|
+| passed | 191 (7-14) / 245 (7-15) / 372 (7-15 round5) | **418** |
+| failed | 5 pre-existing | **0** |
+| skipped | n/a | **8** (weasyprint/pptx 等可选依赖) |
+| isolation issues | 128 errors / 16 failed (误诊) | **0** |
+| 跑全套耗时 | 285s | **283.69s** (基本持平) |
+
+### 10 个 Deprecation Warnings
+
+`datetime.utcnow()` 10 处需要改为 `datetime.now(datetime.UTC)`（Python 3.12+ 弃用，不影响功能）：
+- `app/routes/cms/auth.py:30` (1 处)
+- `tests/test_product_order_status.py:236` (1 处)
+- 其他散落位置待 grep
+
+### 教训
+
+1. **pre-existing 报告需重新验证**：本轮 init-architect 报告的 "test isolation 128 errors" 是**误诊**，36 项审计已修复
+2. **session client + 测试文件 db 设计鲁棒**：lifespan 幂等 + seed if-not-exists + 函数级 auth_header 三件套保证测试间不污染
+3. **pytest 跑全套 4:43 瓶颈**：session client + SQLite 文件 I/O + lifespan 重启；未来可用 pytest-xdist 并行（但需改 worker 级 teardown）
+
+---
+
 ## 变更记录 (Changelog)
 
+- 2026-07-16 (后续 commit 闭环) — P0 Day 2 4 项 critical 缺口修复全部 commit + TripGen lazy import + test isolation 误诊修正：
+  - **新增 §7.26** P0 Day 2 实施闭环 — 4 项 critical 缺口 commit 表（308199f X.509 / 3b82c55 set_gateway fail-closed / 45ac695 parse_notify 4xx / 08835b7 异常持久化+租约）+ 第 5 项缺口需商户资料 + 关键设计决策（fail-closed / SKIP LOCKED / 异常类分层）+ B+C 自动合并奇迹；
+  - **新增 §7.27** TripGen lazy import + test isolation 误诊修正 + 测试基线重置 418/0/8 + 10 个 datetime.utcnow() DeprecationWarning；
+  - **mis-system HEAD = a530537**，ahead of origin/main 16 commits；
+  - **P0 真支付 P0 Day 2 critical 缺口 4/5 完成**——仅 #5 真 Native API 等商户资料；
+  - **教训**：lazy import 设计原则（新模块默认 lazy）+ pre-existing 报告需重新验证（test isolation 误诊）+ parallel agent git 自动合并（B+C wechat_pay.py）。
 - 2026-07-16 13:42:20 — admin 文档校准（第六轮 init-architect + general-purpose 追加）：
   - **新增 §7.23 P0 支付 Day 1/2 实际落地与未闭环项**：落地清单 + 5 项 critical 缺口 + §7.19-§7.22 草案 vs 实际偏差表（详见 §7.23）；
   - **新增 §7.24 TripGen 子域**：Trip 单一数据源、3 API、HTML/PDF/图文/合并 PDF 四类产物、降级策略、临时路径未闭环风险（详见 §7.24）；
