@@ -110,6 +110,60 @@ class WechatNotify:
     out_trade_no: str  # 商户订单号（映射到 ProductOrder.id）
     amount_total_fen: int  # 实付金额（分）
     resource: dict[str, Any]  # 解密后的完整 resource
+    # 元信息（2026-07-15 Day 2 缺口 #3 修复新增，原有 4 字段保持向后兼容）
+    notify_id: str = ""  # 微信回调 event id（payload['id']，用于审计/幂等日志）
+    event_type: str = ""  # 如 TRANSACTION.SUCCESS
+    create_time: str = ""  # 回调 create_time（ISO 秒）
+
+
+# ── 异常层级（P0 Day 2 缺口 #3 修复，2026-07-15）───────────────────
+# 路由层 try/except 按 http_status 映射到安全 4xx/409，
+# 不暴露内部异常细节，避免攻击者探测。
+
+
+class WechatNotifyError(Exception):
+    """微信回调处理业务异常基类。
+
+    http_status 是路由层期望映射的 HTTP 状态码；子类按需覆盖。
+    """
+
+    http_status = 400  # 默认 400
+
+
+class WechatNotifySignatureError(WechatNotifyError):
+    """验签失败 / 时间窗超 / 缺签名头。"""
+
+    http_status = 401
+
+
+class WechatNotifyInvalidJSONError(WechatNotifyError):
+    """回调 body 不是合法 JSON / 解密后非 JSON。"""
+
+    http_status = 400
+
+
+class WechatNotifyMissingFieldError(WechatNotifyError):
+    """必填字段缺失（payload 顶层 id/create_time/resource_type/resource）。"""
+
+    http_status = 400
+
+
+class WechatNotifyInvalidResourceError(WechatNotifyError):
+    """resource 字段缺失（ciphertext/associated_data/nonce）或类型错。"""
+
+    http_status = 400
+
+
+class WechatNotifyDecryptError(WechatNotifyError):
+    """AES-256-GCM 解密失败（密钥错 / nonce 错 / 密文被改 / aad 错）。"""
+
+    http_status = 400
+
+
+class WechatNotifyReplayError(WechatNotifyError):
+    """Redis NX 检测到同 timestamp+nonce 重放（攻击者重复 POST）。"""
+
+    http_status = 409
 
 
 class WechatPayV3Gateway:
@@ -321,23 +375,147 @@ class WechatPayV3Gateway:
         plain = AESGCM(self.api_v3_key).decrypt(nonce, ciphertext, associated)
         return json.loads(plain)
 
+    def _aes_decrypt_raw(
+        self, ciphertext_b64: str, associated_data: str, nonce_str: str
+    ) -> bytes:
+        """AES-256-GCM 解密 resource 三件套 → 解密后的明文 bytes（不解析 JSON）。
+
+        Raises:
+            cryptography 所有底层异常（InvalidTag 等）→ 由 parse_notify_safe 捕获
+            并映射为 WechatNotifyDecryptError。
+        """
+        nonce = nonce_str.encode()
+        ciphertext = base64.b64decode(ciphertext_b64)
+        associated = (associated_data or "").encode()
+        return AESGCM(self.api_v3_key).decrypt(nonce, ciphertext, associated)
+
     # ── 端到端：验签 → 时间窗 → 解密 ─────────────────────
     def parse_notify(
         self, timestamp: str, nonce: str, body: bytes, signature_b64: str
     ) -> WechatNotify | None:
-        """完整解析微信回调（legacy 接口，验签走单证书或 legacy key）；任一步失败返回 None。"""
+        """完整解析微信回调（legacy 接口，验签走单证书或 legacy key）；任一步失败返回 None。
+
+        ⚠️ 本方法签名保留向后兼容 test_wechat_pay.py；新业务请用 parse_notify_safe
+        （带类型化异常，便于路由层映射安全 4xx）。
+        """
         if not self.check_timestamp(timestamp):
             return None
         if not self.verify_signature(timestamp, nonce, body, signature_b64):
             return None
-        event = json.loads(body)
-        resource = self.decrypt_resource(event["resource"])
+        try:
+            event = json.loads(body)
+            resource = self.decrypt_resource(event["resource"])
+        except Exception:
+            return None
         amount = resource.get("amount", {}) or {}
         return WechatNotify(
             transaction_id=str(resource.get("transaction_id", "")),
             out_trade_no=str(resource.get("out_trade_no", "")),
             amount_total_fen=int(amount.get("total", 0)),
             resource=resource,
+        )
+
+    # ── 端到端：带类型化异常的 parse_notify_safe（P0 Day 2 缺口 #3）────────
+    def parse_notify_safe(self, headers: dict, body: bytes) -> WechatNotify:
+        """完整解析微信 v3 回调（带类型化异常，路由层映射 HTTP 状态码）。
+
+        业务流程：
+          1. verify_callback() → 失败 raise WechatNotifySignatureError (401)
+          2. json.loads(body) → 失败 raise WechatNotifyInvalidJSONError (400)
+          3. 顶层字段检查 (id/create_time/resource_type/resource) → 失败 MissingField
+          4. resource 字段检查 (ciphertext/associated_data/nonce) → 失败 InvalidResource
+          5. _aes_decrypt_raw() → 失败 raise WechatNotifyDecryptError (400)
+          6. json.loads(plaintext) → 失败 raise WechatNotifyInvalidJSONError (400)
+
+        与 parse_notify() 的区别：
+          - 入口参数更简洁（headers + body，路由不用手撕 4 个 header）
+          - 任一步失败 raise 业务异常而非返回 None，便于路由按类别回 4xx
+          - 返回 WechatNotify 含 notify_id/event_type/create_time 元信息
+          - 严格校验 payload 顶层必填字段（攻击者不能用旧格式 bypass）
+
+        Args:
+            headers: 含 Wechatpay-Serial / Wechatpay-Timestamp / Wechatpay-Nonce /
+                Wechatpay-Signature 的请求头（FastAPI request.headers 直接转 dict）。
+            body: 原始请求体 bytes（必须为 JSON 编码的回调事件）。
+
+        Returns:
+            WechatNotify：解密 + 解析后的回调数据。
+
+        Raises:
+            WechatNotifySignatureError: 验签失败（含时间窗越界 / serial 未知）。
+            WechatNotifyInvalidJSONError: body 或解密后内容不是合法 JSON。
+            WechatNotifyMissingFieldError: 顶层必填字段缺失。
+            WechatNotifyInvalidResourceError: resource 字段缺失或类型错。
+            WechatNotifyDecryptError: AES 解密失败（密文 / nonce / aad / key 任一错）。
+        """
+        # 1) 验签（headers + body → bool，False → SignatureError）
+        if not self.verify_callback(headers, body):
+            raise WechatNotifySignatureError(
+                "signature verify failed or timestamp out of window"
+            )
+
+        # 2) 反序列化 body
+        try:
+            payload = json.loads(body)
+        except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            raise WechatNotifyInvalidJSONError(f"invalid JSON body: {e}") from e
+        if not isinstance(payload, dict):
+            raise WechatNotifyInvalidJSONError(
+                f"payload not a JSON object: {type(payload).__name__}"
+            )
+
+        # 3) 顶层必填字段
+        for field in ("id", "create_time", "resource_type", "resource"):
+            if field not in payload:
+                raise WechatNotifyMissingFieldError(
+                    f"missing top-level field: {field}"
+                )
+
+        # 4) resource 字段
+        resource = payload["resource"]
+        if not isinstance(resource, dict):
+            raise WechatNotifyInvalidResourceError(
+                f"resource not a JSON object: {type(resource).__name__}"
+            )
+        for field in ("ciphertext", "associated_data", "nonce"):
+            if field not in resource:
+                raise WechatNotifyInvalidResourceError(
+                    f"missing resource field: {field}"
+                )
+
+        # 5) AES 解密
+        try:
+            plaintext_bytes = self._aes_decrypt_raw(
+                resource["ciphertext"],
+                resource["associated_data"],
+                resource["nonce"],
+            )
+        except Exception as e:  # cryptography InvalidTag / ValueError / binascii.Error 全捕
+            raise WechatNotifyDecryptError(
+                f"AES-256-GCM decrypt failed: {type(e).__name__}: {e}"
+            ) from e
+
+        # 6) 解密后反序列化
+        try:
+            decrypted = json.loads(plaintext_bytes)
+        except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            raise WechatNotifyInvalidJSONError(
+                f"invalid decrypted JSON: {e}"
+            ) from e
+        if not isinstance(decrypted, dict):
+            raise WechatNotifyInvalidJSONError(
+                f"decrypted payload not a JSON object: {type(decrypted).__name__}"
+            )
+
+        amount = decrypted.get("amount", {}) or {}
+        return WechatNotify(
+            transaction_id=str(decrypted.get("transaction_id", "")),
+            out_trade_no=str(decrypted.get("out_trade_no", "")),
+            amount_total_fen=int(amount.get("total", 0)),
+            resource=decrypted,
+            notify_id=str(payload.get("id", "")),
+            event_type=str(payload.get("event_type", "")),
+            create_time=str(payload.get("create_time", "")),
         )
 
     # ── 下单/退款/查单（需真商户证书，端到端待密钥）──────
