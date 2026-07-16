@@ -4,6 +4,24 @@
 
 ## 变更记录 (Changelog)
 
+- 2026-07-17 — admin 36 项审计 4 处偏差修复 + round_7 收尾：
+  - **commit `47f03ef`** 修 36 项审计 4 处代码 vs 记忆偏差：
+    - 登录按 IP 限流 10/min（复用 cache.rate_limit_check，Redis fail-open）
+    - 注册限流注释 5/小时 → 1000/小时
+    - conftest 新增 session-scoped `_cached_token`，auth_header 复用（提速全套 286s → 237s）
+    - lifespan shutdown `await notifier.close_client()`（释放 httpx 连接池）
+    - 新增 4 项审计收尾回归测试（test_audit_closeout_divergence.py）
+  - 测试基线 418 → **422 passed / 0 failed / 8 skipped (237.87s)**
+  - 完整 git 拓扑：mis-system HEAD `f6336b3`，ahead of origin/main **19 commits**
+- 2026-07-16 13:42 ~ 17:30 — 第六轮 + 第七轮 init-project 续跑 + P0 Day 2 实施闭环：
+  - P0 真支付 Day 2 critical 缺口修复 4/5（308199f X.509 / 3b82c55 set_gateway fail-closed / 45ac695 parse_notify 4xx / 08835b7 异常持久化+租约）
+  - TripGen lazy import 修复 admin 启动回归（d8dc562）
+  - test isolation 误诊修正（a530537，0 issues 实测）
+  - datetime.utcnow() deprecation 修复（a566fb0，warnings 2→0）
+  - admin CLAUDE.md §7.26 + §7.27 追加（commit f6336b3）
+  - 业务材料归档：24 个散落 PDF/DOCX 移到 business-materials/
+  - memory 新文件：project-p0-day2-implementation-2026-07-16.md
+  - 测试基线 372 → 418 passed
 - 2026-07-15 11:42:03 — 续跑增量更新（zcf:init-project）：
   - **Sprint 0/1/2 收官（Storage + COS + Univer）**（详见 memory `project-sprint0-storage-2026-07-14.md` + `project-sprint2-univer-spike-2026-07-14.md`）：
     - admin 加 `app/services/storage/`（`Storage` ABC + `LocalStorage` 默认 + `CosStorage` 腾讯云 ap-guangzhou / Bucket `qm-wx-1418512491` + `STSCredentialProvider`）；admin 加 `routes/storage.py`（前端直传 presign + health），`/api/v1/storage/{presign,health}` 2 端点；
@@ -266,19 +284,20 @@ docker compose up -d
 
 ## 测试策略 (Testing)
 
-### 测试全景（2026-07-15 重置基线）
+### 测试全景（2026-07-17 第七轮重置基线）
 
-| 维度 | 7-14 数字 | 7-15 数字 | 说明 |
-|------|----------|----------|------|
-| 总计 | 191 passed 0 pre-existing | **~245 passed 0 pre-existing** | + storage 30+9+9+6=54 + voucher 9 + office 16（含 skip） |
-| admin | 94 passed | **104 passed** | + test_voucher 9 + test_office 16 + test_storage_* 4 |
-| meeting-notes | 19 passed | **19 passed** | 无变化 |
-| asr-cluster | 16 passed | **16 passed** | 无变化 |
-| mlx-asr | 13 passed | **13 passed** | 唯一未配测试标签已移除 |
-| 前端 vitest | 46 passed | **46 passed** | 含 CMS 视图 + 状态映射 + 办公桥 + OfficeCenter |
-| Playwright E2E | 3 passed | **3 passed** | 2026-07-14 修复 globalSetup teardown 路径错位 |
-| locust 性能 | P95 < 2000ms | **P95 < 2000ms** | 2026-07-14 修复 batch_id=1 假设 404 容忍 |
-| storage 集成 | n/a | **6 桩** | 需 INTEGRATION env 自动 skip |
+| 维度 | 7-14 数字 | 7-15 数字 | 7-16 round6 | 7-17 round7 | 说明 |
+|------|----------|----------|-------------|-------------|------|
+| 总计 | 191 passed 0 pre-existing | ~245 passed 0 pre-existing | **418 passed** 0 failed 8 skipped | **422 passed** 0 failed 8 skipped (237.87s) | + storage 54 + voucher 9 + office 16 + status 263 + TripGen 9 + P0 64 + 审计 4 |
+| admin | 94 passed | 104 passed | 360+ (含 P0 + TripGen + Office) | 364+ (+ 审计 4) | session token 缓存提速 286s → 237s |
+| meeting-notes | 19 passed | 19 passed | 19 passed | 19 passed | 无变化 |
+| asr-cluster | 16 passed | 16 passed | 16 passed | 16 passed | 无变化 |
+| mlx-asr | 13 passed | 13 passed | 13 passed | 13 passed | 无变化 |
+| 前端 vitest | 46 passed | 46 passed | 46 passed | 46 passed | 含 CMS 视图 + 状态映射 + 办公桥 + OfficeCenter |
+| Playwright E2E | 3 passed | 3 passed | 3 passed | 3 passed | 2026-07-14 修复 globalSetup teardown 路径错位 |
+| locust 性能 | P95 < 2000ms | P95 < 2000ms | P95 < 2000ms | P95 < 2000ms | 2026-07-14 修复 batch_id=1 假设 404 容忍 |
+| storage 集成 | n/a | 6 桩 | 6 桩 | 6 桩 | 需 INTEGRATION env 自动 skip |
+| **P0 真支付** | n/a | n/a | **64 项 P0 测试** | 64 项 | Day 1 数据底座 + Day 2 业务层（4 项 critical 缺口修复） |
 
 > 详见 memory `project-fullstack-audit-2026-07-14.md` + `project-comprehensive-test-2026-07-13.md` + `project-sprint0-storage-2026-07-14.md`。
 
@@ -449,6 +468,10 @@ pnpm test:coverage # 覆盖率
 - `project-sprint2-univer-spike-2026-07-14.md` — **S2 Univer Vue3 spike**（官方 Vue3 preset 集成）
 - `project-officecli-bridge-2026-07-14.md` — **officecli 服务端桥骨架**（admin office 桥 + oa-agent /tools/ 端点）
 - `project-mis-finance-print-2026-07-15.md` — **财务复式记账 + A4 打印 + 工作台拖拽 + dy8 部署**
+- `project-cms-payments-webhook-p0.md` — **CMS 真支付 P0 方案 + Day 1 实施**（2026-07-15）
+- `nanoai-deploy-2026-07-16.md` — **nanoai.fun 生产上线**（2026-07-16，DNS + certbot + nginx + COS 独立 Bucket + schema 修 + dy8 密码）
+- `project-admin-audit-36fix-2026-07-16.md` — **admin 36 项审查收尾**（2026-07-16）
+- `project-p0-day2-implementation-2026-07-16.md` — **P0 Day 2 实施闭环 + TripGen + test isolation + datetime**（2026-07-16，19 commits + 422/0/8 测试基线）
 - `reference-mis-oss.md` — 开源参考项目链接
 
 ---
@@ -466,3 +489,22 @@ pnpm test:coverage # 覆盖率
 7. **infra/ 版本化**：`../infra/` 被 .gitignore 忽略，含 nginx X-API-Key 占位，建议用私有仓库或 secrets 管理
 8. **CI 扩展**：当前 CI（`.github/workflows/ci.yml`）跑 unit（忽略 integration/e2e/performance），后续可加 integration（装 requests）+ e2e + locust 性能基准
 9. **前端 87 个 `ref<any[]>` EP row 精确化**（**低优先级**）：受 Element Plus `el-table` row 框架限制（DefaultRow 类型），ROI 低可暂缓；或换 TableV2 / 自封装 `<KTable>` 组件
+
+### 2026-07-16 ~ 07-17 已完成（不在"下一步建议"内）
+- ✅ CMS 真支付 P0 Day 1+Day 2（4/5 修复）：alembic 引入 + 3 新表 + ProductOrder 7 状态机 + WechatPayV3Gateway + payment_fulfillment + parse_notify_safe + 异常持久化 + 租约回收
+- ✅ 36 项审计 4 处代码 vs 记忆偏差（登录限流 / 注册注释 / session token / notifier close）
+- ✅ TripGen lazy import（d8dc562，admin 启动回归修复）
+- ✅ test isolation 误诊修正（a530537，0 issues 实测）
+- ✅ datetime.utcnow() deprecation（a566fb0，warnings 2→0）
+- ✅ 业务材料归档（24 个 PDF/DOCX 移到 business-materials/）
+- ✅ admin CLAUDE.md §7.23-§7.27 校准（1773 行）
+- ✅ memory 沉淀（project-p0-day2-implementation-2026-07-16.md）
+
+### 2026-07-17 仍开放
+- ⏸ P0 #5 真 Native API（需 `WECHAT_PAY_MCH_ID/APP_ID/API_V3_KEY` 商户资料）
+- ⏸ PROD-SCHEMA-DRIFT（nanoai 生产手工补 `cms_media_asset` 4 列未写 alembic revision）
+- ⏸ TRIPGEN-DELIVERY（generate 临时路径无下载/COS/清理闭环）
+- ⏸ OFFICE-ENGINE-SANDBOX（本地 5 端点 workspace 未统一 + 临时文件清理）
+- ⏸ NANOAI-INFRA-VERSIONING（生产 nginx 完整 server block 仅在服务器，未同步本地 infra/）
+- ⏸ MIS-DOC-DRIFT（本文件校准，下次续跑 round_8 处理；mis-system/CLAUDE.md 测试基线 245 → 422 已在 round_7 处理 — 即本次 commit）
+- ⏸ LEGACY-DEBT（voucher 双轨 + vite 双配置 + Univer chunk + agent rejected reclaim 等）
