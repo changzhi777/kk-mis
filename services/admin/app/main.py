@@ -29,6 +29,33 @@ async def lifespan(app: FastAPI):
     logger.info(f"  - 数据库: {settings.database_display}")
     logger.info(f"  - JWT: {settings.jwt_algorithm} access={settings.access_token_expire}s")
     logger.info("=" * 60)
+
+    # === P0 fail-closed 支付网关注入（2026-07-16 Day 2 缺口 #1 修复）===
+    # 风险：若 PAYMENT_PROVIDER=wechat 但启动时未成功构造 wechat gateway，
+    #       routes/cms/orders.py::pay_order 会用全局 MockGateway 完成 mock 支付
+    #       并写库为真实订单事实 —— silent corruption（资金对账灾难）。
+    #
+    # 决策：**fail-CLOSED**（拒绝启动，systemd 看到非零退出码 → 告警）。
+    #   - 与现有 init_db/cache.init 的 fail-open 不一致，但支付是资金关键路径，
+    #     静默降级比显式崩溃更危险（操作员可能不知道生产在用 mock 完成 wechat 订单）。
+    #   - 拒绝启动时 ERROR 日志 + traceback 完整写入 journald/systemd journal。
+    #   - 如未来需 fail-open（如 dev 模式自动降级），加 APP_ENV != 'production' 分支。
+    from .services.payment import build_gateway_from_settings, set_gateway as _set_gw
+    try:
+        gw = build_gateway_from_settings(settings)
+        _set_gw(gw)
+        logger.info(
+            f"P0 payment gateway initialized: {type(gw).__name__} "
+            f"(provider={settings.payment_provider})"
+        )
+    except Exception as e:
+        logger.error(
+            f"P0 payment gateway init FAILED: {type(e).__name__}: {e} "
+            f"—— 拒绝启动（fail-closed），systemd 将以非零退出码结束，请立即排查。",
+            exc_info=True,
+        )
+        raise  # fail-closed：lifespan 抛出 → 进程退出码非零 → systemd 告警
+
     try:
         await init_db()
     except Exception as e:
