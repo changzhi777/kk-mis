@@ -18,6 +18,7 @@ from .cms import (
     MediaAsset,
     Merchant,
     OrderCard,
+    PaymentExceptionEvent,
     PaymentIdempotency,
     ProductOrder,
     Review,
@@ -98,6 +99,7 @@ __all__ = [
     "PaymentIdempotency",
     "WebhookRetry",
     "OrderCard",
+    "PaymentExceptionEvent",  # P0 Day 2.1 缺口 #4 异常事件持久化
     "ReferralCommission",  # LOW：补 __all__ 导出（原漏）
     "WithdrawalRequest",
     "CardTransfer",

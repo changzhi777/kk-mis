@@ -378,3 +378,37 @@ class OrderCard(Base):
         UniqueConstraint("order_id", "card_id", name="uq_cms_order_card"),
         Index("idx_cms_order_card_order", "order_id"),
     )
+
+
+class PaymentExceptionEvent(Base):
+    """支付异常事件记录（P0 Day 2.1 缺口 #4，表 cms_payment_exception_event）
+
+    三类持久化需求：
+    1. 微信支付确认冲突（金额不符/状态非法/订单不存在）
+    2. webhook 重试耗尽（attempts 达 MAX_RETRY_ATTEMPTS）
+    3. webhook 解析失败（验签不过/JSON 解析失败）
+
+    字段说明：
+    - event_type: 事件类型（payment_conflict / webhook_retry_exhausted /
+      parse_failed / order_sync_failed / other）
+    - severity: info | warning | critical（critical 必触发告警）
+    - detail: JSON 详情（结构化），包含 last_error/attempts/raw_payload 摘要
+    - payment_id: 微信支付 transaction_id（可空）
+    - order_id: 关联订单（可空，比如订单不存在时）
+
+    索引：event_type / order_id / payment_id / created_at 便于按维度查询告警历史。
+    """
+
+    __tablename__ = "cms_payment_exception_event"
+
+    id = pk()
+    event_type = Column(String(50), nullable=False, index=True)
+    order_id = Column(BigInteger, ForeignKey("cms_product_order.id"), nullable=True, index=True)
+    payment_id = Column(String(100), nullable=True, index=True)
+    severity = Column(String(20), nullable=False, default="warning")  # info|warning|critical
+    detail = Column(Text, nullable=True)  # JSON 字符串（结构化详情）
+    created_at = Column(DateTime, nullable=False, default=utcnow, index=True)
+
+    __table_args__ = (
+        Index("idx_cms_payment_exception_event_type_time", "event_type", "created_at"),
+    )

@@ -25,8 +25,16 @@ from datetime import timedelta
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+try:
+    from prometheus_client import Counter, Gauge
+    _PROMETHEUS_AVAILABLE = True
+except ImportError:  # pragma: no cover — prometheus_client 缺失时降级
+    Counter = None  # type: ignore[assignment]
+    Gauge = None  # type: ignore[assignment]
+    _PROMETHEUS_AVAILABLE = False
 
 from ..config import settings
 from ..models import (
@@ -35,6 +43,7 @@ from ..models import (
     AssetCardType,
     Coupon,
     OrderCard,
+    PaymentExceptionEvent,
     PaymentIdempotency,
     ProductOrder,
     ReferralCommission,
@@ -49,6 +58,58 @@ logger = logging.getLogger(__name__)
 # 发卡任务持久化重试配置（D4：BackgroundTasks 低延迟 + poller 兜底）
 MAX_RETRY_ATTEMPTS = 5
 _RETRY_BACKOFF_SECONDS = (30, 120, 600, 1800)  # 30s / 2m / 10m / 30m
+
+# ── P0 Day 2.1 缺口 #4 修复：prometheus 指标 + 租约配置 ──────────────
+# 默认租约 5 分钟（300s）；过期回收兜底 10 分钟（poller 抢回前上限）
+_DEFAULT_LEASE_SECONDS = 300
+_LEASE_RECLAIM_GRACE_MINUTES = 10
+
+if _PROMETHEUS_AVAILABLE:
+    # 重试耗尽告警（critical 必触发回调 + 计数器自增）
+    WEBHOOK_RETRY_EXHAUSTED = Counter(
+        "cms_webhook_retry_exhausted_total",
+        "Webhook 重试耗尽事件计数（critical 告警源）",
+        ["event_type"],
+    )
+    # 当前 leased 任务数（调试 + 容量观测）
+    WEBHOOK_RETRY_LEASED = Gauge(
+        "cms_webhook_retry_leased",
+        "当前被租约持有的发卡任务数",
+    )
+    # 异常事件计数（按类型 + 严重度维度）
+    PAYMENT_EXCEPTION_EVENTS = Counter(
+        "cms_payment_exception_events_total",
+        "支付异常事件计数",
+        ["event_type", "severity"],
+    )
+else:
+    # prometheus 不可用时降级为 NoOp，metrics 调用安全吞掉
+    WEBHOOK_RETRY_EXHAUSTED = None  # type: ignore[assignment]
+    WEBHOOK_RETRY_LEASED = None  # type: ignore[assignment]
+    PAYMENT_EXCEPTION_EVENTS = None  # type: ignore[assignment]
+
+
+def _metric_inc(counter, labels: dict | None = None) -> None:
+    """带降级的指标自增（prometheus 不可用时静默跳过，避免测试/开发崩溃）。"""
+    if counter is None:
+        return
+    try:
+        if labels:
+            counter.labels(**labels).inc()
+        else:
+            counter.inc()
+    except Exception:  # pragma: no cover — 标签非法等极端情况
+        pass
+
+
+def _metric_gauge_set(gauge, value: float) -> None:
+    """带降级的指标设值。"""
+    if gauge is None:
+        return
+    try:
+        gauge.set(value)
+    except Exception:  # pragma: no cover
+        pass
 
 # 幂等记录结果状态
 IDEMPOTENCY_SUCCEEDED = "succeeded"
@@ -436,3 +497,194 @@ async def start_retry_poller() -> None:
                 await s.commit()
         except Exception:
             logger.exception("发卡重试 poller 异常")
+
+
+# ── P0 Day 2.1 缺口 #4 修复 ────────────────────────────────────────────
+# 1. SELECT FOR UPDATE SKIP LOCKED + locked_at 双重租约防重复发卡
+# 2. 重试耗尽 → 同步订单 status='failed' + 告警 + Prometheus 指标
+# 3. 异常事件持久化（结构化，便于审计 + 回放）
+
+
+async def claim_pending_jobs(
+    session: AsyncSession,
+    batch_size: int = 10,
+    lease_seconds: int = _DEFAULT_LEASE_SECONDS,
+) -> list[WebhookRetry]:
+    """领取待处理任务（带 locked_at 租约，PG/SQLite 兼容）。
+
+    多实例部署时：
+    - PG 用 FOR UPDATE SKIP LOCKED 抢占 SELECT 行锁；
+    - 持有期间 locked_at 标记 lease 起点；
+    - 过期租约（locked_at < now - 10min）可被下一轮 poller 重领；
+    - 任务处理成功调用 release_job_lease() 清空 locked_at。
+
+    与原 poll_due_issue_tasks 区别：
+    - poll_due_issue_tasks 仅负责扫描，不写 locked_at；
+    - claim_pending_jobs 是任务领取入口，写 locked_at 给后续 release/mark_failed 用。
+    """
+    from datetime import datetime, timedelta
+
+    now = utcnow()
+    lease_expired_threshold = now - timedelta(minutes=_LEASE_RECLAIM_GRACE_MINUTES)
+    stmt = (
+        select(WebhookRetry)
+        .where(
+            WebhookRetry.status.in_(("pending", "retry")),
+            WebhookRetry.next_retry_at <= now,
+            or_(
+                WebhookRetry.locked_at.is_(None),
+                WebhookRetry.locked_at < lease_expired_threshold,
+            ),
+        )
+        .order_by(WebhookRetry.next_retry_at)
+        .limit(batch_size)
+        .with_for_update(skip_locked=True)
+    )
+    jobs = list((await session.execute(stmt)).scalars().all())
+    for job in jobs:
+        job.locked_at = now
+        # lease 失效时间 = locked_at + lease_seconds，可在调用方按需计算
+        # 不必存表，标记 locked_at 即可。过期回收走 _LEASE_RECLAIM_GRACE_MINUTES。
+    if jobs:
+        await session.flush()
+    _metric_gauge_set(WEBHOOK_RETRY_LEASED, float(len(jobs)))
+    return jobs
+
+
+def release_job_lease(job: WebhookRetry) -> None:
+    """释放任务租约（成功后调用，清空 locked_at 让别的 worker 看到本任务已处理完）。
+
+    典型用法：在 process_issue_task 成功分支（或业务最终成功路径）调用。
+    这里只是字段清空，不写 status；status 由 process_issue_task 控制。
+    """
+    job.locked_at = None
+
+
+async def mark_job_failed(
+    session: AsyncSession,
+    job: WebhookRetry,
+    error: str,
+    alert_callback=None,
+) -> None:
+    """重试耗尽：标记 job failed + 同步订单 status='failed' + 告警 + Prometheus。
+
+    参数：
+        session: 同一事务 session
+        job: WebhookRetry 实例（必须已 locked）
+        error: 最后一次错误（会被截断到 500 字符落库）
+        alert_callback: 可选 async 回调，签名 await cb(severity, event, **kw)
+            缺省时仅打日志 + Prometheus（不阻塞生产 webhook 返回）。
+
+    订单同步策略：
+        - order.status 不在 (failed/refunded/cancelled) 时才覆盖为 failed
+        - 已终态（refunded/cancelled）不覆盖（保留业务历史）
+        - 同步后必须 flush，不 commit（由外层事务控制）
+    """
+    # 1. job 状态：耗尽
+    job.status = "failed"
+    job.last_error = (error or "")[:500]
+    job.locked_at = None  # 失败后释放租约
+
+    # 2. 同步订单（仅未终态）
+    order = await session.get(ProductOrder, job.order_id)
+    if order is not None:
+        terminal_states = {"failed", "refunded", "cancelled"}
+        if order.status not in terminal_states and order.pay_status not in terminal_states:
+            order.status = "failed"
+            logger.warning(
+                "支付履约失败耗尽：order=%s synced status=failed attempts=%s",
+                order.id,
+                job.attempts,
+            )
+        else:
+            logger.info(
+                "支付履约失败但订单已终态，跳过覆盖：order=%s status=%s",
+                order.id,
+                order.status,
+            )
+
+    # 3. 写异常事件（结构化）
+    await record_exception_event(
+        session,
+        event_type="webhook_retry_exhausted",
+        order_id=job.order_id,
+        payment_id=None,
+        severity="critical",
+        detail={
+            "job_id": job.id,
+            "attempts": job.attempts,
+            "max_attempts": MAX_RETRY_ATTEMPTS,
+            "last_error": job.last_error,
+        },
+    )
+
+    # 4. Prometheus 指标
+    _metric_inc(WEBHOOK_RETRY_EXHAUSTED, {"event_type": "webhook_retry_exhausted"})
+
+    # 5. 回调告警（生产可注入 webhook / 邮件 / 钉钉等）
+    if alert_callback is not None:
+        try:
+            await alert_callback(
+                severity="critical",
+                event="webhook_retry_exhausted",
+                job_id=job.id,
+                order_id=job.order_id,
+                attempts=job.attempts,
+                last_error=job.last_error,
+            )
+        except Exception:  # pragma: no cover — 告警失败不阻塞业务
+            logger.exception("alert_callback 调用失败 job=%s", job.id)
+
+
+async def record_exception_event(
+    session: AsyncSession,
+    event_type: str,
+    order_id: int | None = None,
+    payment_id: str | None = None,
+    severity: str = "warning",
+    detail: dict | None = None,
+) -> PaymentExceptionEvent:
+    """记录支付异常事件（持久化 + Prometheus）。
+
+    典型 event_type：
+        - 'payment_conflict'（金额不符/状态非法/订单不存在）
+        - 'webhook_retry_exhausted'（由 mark_job_failed 自动调用）
+        - 'parse_failed'（webhook 验签/JSON 失败）
+        - 'order_sync_failed'（订单同步异常）
+        - 'other'（兜底）
+
+    severity 取值：info | warning | critical
+    detail：dict，序列化时 default=str 防 Decimal/datetime 不可序列化
+    """
+    if severity not in ("info", "warning", "critical"):
+        raise ValueError(f"severity 非法: {severity!r}")
+
+    event = PaymentExceptionEvent(
+        event_type=event_type,
+        order_id=order_id,
+        payment_id=payment_id,
+        severity=severity,
+        detail=json.dumps(detail or {}, default=str, ensure_ascii=False),
+    )
+    session.add(event)
+    await session.flush()
+
+    _metric_inc(
+        PAYMENT_EXCEPTION_EVENTS,
+        {"event_type": event_type, "severity": severity},
+    )
+    if severity == "critical":
+        logger.critical(
+            "支付异常事件 critical: type=%s order=%s payment_id=%s",
+            event_type,
+            order_id,
+            payment_id,
+        )
+    elif severity == "warning":
+        logger.warning(
+            "支付异常事件 warning: type=%s order=%s payment_id=%s",
+            event_type,
+            order_id,
+            payment_id,
+        )
+    return event
