@@ -56,7 +56,16 @@ async def _user_info(user: User, session: AsyncSession) -> UserInfo:
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(req: LoginRequest, session: AsyncSession = Depends(get_session)):
+async def login(
+    req: LoginRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    # 按 IP 限流：每分钟最多 10 次，降低暴力破解风险
+    from .. import cache
+    ip = request.client.host if request.client else "unknown"
+    if not await cache.rate_limit_check(f"ratelimit:login:{ip}", 10, 60):
+        raise HTTPException(status_code=429, detail="登录过于频繁，请稍后再试")
     user = (
         await session.execute(select(User).where(User.username == req.username))
     ).scalar_one_or_none()
@@ -75,7 +84,7 @@ async def login(req: LoginRequest, session: AsyncSession = Depends(get_session))
 @router.post("/register", response_model=TokenResponse)
 async def register(req: RegisterRequest, request: Request, session: AsyncSession = Depends(get_session)):
     """自助注册：创建用户并绑定 staff 角色（基础菜单权限），注册即登录"""
-    # MEDIUM：公开端点限流（5 次/小时/IP，防批量注册）
+    # MEDIUM：公开端点限流（1000 次/小时/IP，防批量注册）
     from .. import cache
     ip = request.client.host if request.client else "unknown"
     if not await cache.rate_limit_check(f"ratelimit:register:{ip}", 1000, 3600):

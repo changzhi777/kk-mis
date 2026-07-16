@@ -70,6 +70,12 @@ async def lifespan(app: FastAPI):
         await poller_task
     except asyncio.CancelledError:
         pass
+    try:
+        from .services.notifier import close_client
+        await close_client()
+        logger.info("notifier client closed")
+    except Exception as e:
+        logger.warning(f"notifier close_client failed: {e}")
     await cache.close()
     await close_db()
     logger.info("kk-cms Admin 关闭")

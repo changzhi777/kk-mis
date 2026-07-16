@@ -142,12 +142,18 @@ def client():
             os.remove(p)
 
 
-@pytest.fixture
-def auth_header(client):
-    """登录拿 token，返回带 Authorization 的 headers"""
+@pytest.fixture(scope="session")
+def _cached_token(client):
+    """session-scoped token 缓存：每个测试 session 内只登录一次"""
     r = client.post(
         "/admin/api/v1/auth/login",
         json={"username": "admin", "password": "admin1234"},
     )
-    token = r.json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+    r.raise_for_status()
+    return r.json()["access_token"]
+
+
+@pytest.fixture
+def auth_header(_cached_token):
+    """使用 session 缓存的 token，避免每个测试重复登录"""
+    return {"Authorization": f"Bearer {_cached_token}"}
