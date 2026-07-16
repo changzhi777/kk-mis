@@ -3,7 +3,7 @@
 JWT 复用 JWT_SECRET，payload type=end_user 区分 admin（type=access）。
 get_end_user 为可选依赖（未登录返回 None），公开页匿名/登录皆可。
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import jwt
 from fastapi import APIRouter, Depends, HTTPException
@@ -27,7 +27,7 @@ def _make_token(user_id: int) -> str:
         "sub": str(user_id),
         "type": "end_user",
         # MEDIUM：原 7 天无吊销风险，缩至 12h（C 端重新登录成本低）
-        "exp": datetime.utcnow() + timedelta(hours=12),
+        "exp": datetime.now(timezone.utc) + timedelta(hours=12),
     }
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 

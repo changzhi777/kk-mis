@@ -8,7 +8,7 @@ P0 Day 1.2.1（2026-07-15）— CMS 真支付接入前置：
 
 覆盖：默认值、字段读写、属性映射、边界值。
 """
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pytest
 
@@ -233,7 +233,7 @@ def test_full_lifecycle_status_transitions():
     assert order.is_paid is True
 
     # paid_at 字段独立维护（不强制耦合）
-    order.paid_at = datetime.utcnow()
+    order.paid_at = datetime.now(timezone.utc)
     assert order.paid_at is not None
 
 
