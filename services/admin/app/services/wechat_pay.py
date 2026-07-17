@@ -27,9 +27,13 @@ from __future__ import annotations
 import base64
 import json
 import os
+import secrets
 import time
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Any
+
+import httpx
 
 from cryptography import x509
 from cryptography.exceptions import InvalidSignature
@@ -518,13 +522,154 @@ class WechatPayV3Gateway:
             create_time=str(payload.get("create_time", "")),
         )
 
-    # ── 下单/退款/查单（需真商户证书，端到端待密钥）──────
-    async def pay(self, order_id: int, amount, subject: str = "") -> PaymentResult:
-        """Native 统一下单（TODO：真商户证书；成功返回 code_url 于 message）。"""
-        raise NotImplementedError("WechatPayV3Gateway.pay 需真商户证书，端到端待密钥")
+    # ── 下单/退款/查单（微信支付 v3，手写签名不黑盒 SDK）──────
+    # 规范：https://pay.weixin.qq.com/wiki/doc/apiv3/wechatpay/wechatpay4.shtml
+    # ⚠️ 端到端待商户密钥（MCH_ID/APP_ID/API_V3_KEY/商户私钥/平台证书）灰度验证；
+    #    单测用自签 RSA + 自签 X.509 平台证书验证签名/验签逻辑（见 test_wechat_pay_native.py）。
 
-    async def refund(self, order_id: int, transaction_id: str, amount=None) -> PaymentResult:
-        raise NotImplementedError("WechatPayV3Gateway.refund 端到端待密钥")
+    WECHAT_API_BASE = "https://api.mch.weixin.qq.com"
+
+    def _to_fen(self, amount) -> int:
+        """金额（元，Decimal/float/int/str）→ 分（int），HALF_UP 舍入到分。"""
+        fen = (Decimal(str(amount)) * Decimal("100")).to_integral_value(
+            rounding="ROUND_HALF_UP"
+        )
+        return int(fen)
+
+    def _build_authorization(self, method: str, url_path: str, body_str: str) -> str:
+        """构造微信支付 v3 请求 Authorization 头。
+
+        签名串 = ``METHOD\\nurl_path\\ntimestamp\\nnonce\\nbody\\n``，商户私钥
+        RSA-SHA256 (PKCS1v15) 签名后 base64。需 ``mch_private_key`` 与 ``mch_serial_no``。
+        """
+        if self.mch_private_key is None:
+            raise RuntimeError("WechatPayV3Gateway: 缺商户私钥，无法签名请求")
+        timestamp = str(int(time.time()))
+        nonce = secrets.token_hex(16)
+        sign_str = f"{method.upper()}\n{url_path}\n{timestamp}\n{nonce}\n{body_str}\n"
+        signature = self.mch_private_key.sign(
+            sign_str.encode(), padding.PKCS1v15(), hashes.SHA256()
+        )
+        sig_b64 = base64.b64encode(signature).decode()
+        return (
+            "WECHATPAY2-SHA256-RSA2048 "
+            f'mchid="{self.mch_id}",nonce_str="{nonce}",timestamp="{timestamp}",'
+            f'serial_no="{self.mch_serial_no}",signature="{sig_b64}"'
+        )
+
+    async def _request(
+        self, method: str, url_path: str, body_str: str = ""
+    ) -> "httpx.Response":
+        """发微信支付 v3 请求（带签名头）返回响应；不验签（由调用方 _verify_response 验）。"""
+        auth = self._build_authorization(method, url_path, body_str)
+        headers = {
+            "Authorization": auth,
+            "Accept": "application/json",
+            "User-Agent": "kk-mis-wechatpayv3/1.0",
+        }
+        content = body_str.encode() if body_str else b""
+        if body_str:
+            headers["Content-Type"] = "application/json"
+        async with httpx.AsyncClient(timeout=30.0) as cli:
+            return await cli.request(
+                method,
+                f"{self.WECHAT_API_BASE}{url_path}",
+                headers=headers,
+                content=content,
+            )
+
+    def _verify_response(self, resp: "httpx.Response") -> None:
+        """验证微信应答签名（防中间人篡改）。
+
+        - 平台证书已加载（cert_map 非空）→ 必须验签通过，否则 raise（fail-closed）；
+        - 平台证书未加载（cert_map 空，仅 dev/mock）→ 静默跳过（生产由
+          ``from_settings`` 保证证书加载 + lifespan fail-closed）。
+        """
+        if not self._cert_map:
+            return
+        headers = {k: v for k, v in resp.headers.items()}
+        if not self.verify_callback(headers, resp.content):
+            raise RuntimeError(
+                "WechatPayV3Gateway: 微信应答验签失败（签名/时间窗/serial 异常）"
+            )
+
+    async def pay(self, order_id: int, amount, subject: str = "") -> PaymentResult:
+        """Native 统一下单 → 返回 code_url（二维码链接）于 transaction_id 与 message。
+
+        注意：Native 模式 pay 仅"预下单"，实际支付状态由 webhook 异步回调确认
+        （``parse_notify_safe`` → ``confirm_payment``）；本方法 ``success=True``
+        表示下单请求成功，不代表买家已付款。
+        """
+        body = {
+            "appid": self.app_id,
+            "mchid": self.mch_id,
+            "description": subject or f"订单 {order_id}",
+            "out_trade_no": str(order_id),
+            "notify_url": self.notify_url,
+            "amount": {"total": self._to_fen(amount), "currency": "CNY"},
+        }
+        body_str = json.dumps(body, separators=(",", ":"), ensure_ascii=False)
+        resp = await self._request("POST", "/v3/pay/transactions/native", body_str)
+        if resp.status_code != 200:
+            return PaymentResult(
+                False, message=f"HTTP {resp.status_code}: {resp.text[:200]}"
+            )
+        self._verify_response(resp)
+        data = resp.json()
+        code_url = str(data.get("code_url", ""))
+        return PaymentResult(success=True, transaction_id=code_url, message=f"code_url={code_url}")
+
+    async def refund(
+        self, order_id: int, transaction_id: str, amount=None
+    ) -> PaymentResult:
+        """申请退款（按 out_trade_no）。
+
+        已知限制：PaymentGateway.refund 签名未含原订单总额，此处 amount 同时填入
+        ``refund`` 与 ``total`` —— 仅"全额退款"语义正确；部分退款需扩展 Protocol
+        传入原 total（YAGNI，待真支付部分退款需求触发）。
+        """
+        if amount is None:
+            return PaymentResult(False, message="refund 需指定退款金额（元）")
+        total_fen = self._to_fen(amount)
+        body = {
+            "out_trade_no": str(order_id),
+            "out_refund_no": f"r{order_id}_{int(time.time())}",
+            "reason": "用户申请退款",
+            "amount": {
+                "refund": total_fen,
+                "total": total_fen,
+                "currency": "CNY",
+            },
+        }
+        body_str = json.dumps(body, separators=(",", ":"), ensure_ascii=False)
+        resp = await self._request("POST", "/v3/refund/domestic/refunds", body_str)
+        if resp.status_code != 200:
+            return PaymentResult(
+                False, message=f"HTTP {resp.status_code}: {resp.text[:200]}"
+            )
+        self._verify_response(resp)
+        data = resp.json()
+        status = str(data.get("status", ""))
+        refund_id = str(data.get("refund_id", ""))
+        # SUCCESS/CLOSED 已到账；PROCESSING 处理中（异步）→ 视为发起成功
+        ok = status in ("SUCCESS", "CLOSED", "PROCESSING")
+        return PaymentResult(
+            success=ok, transaction_id=refund_id, message=f"refund_status={status}"
+        )
 
     async def query(self, order_id: int, transaction_id: str = "") -> PaymentResult:
-        raise NotImplementedError("WechatPayV3Gateway.query 端到端待密钥")
+        """查单（按 out_trade_no）；trade_state=SUCCESS 视为已支付。"""
+        url_path = f"/v3/pay/transactions/out-trade-no/{order_id}?mchid={self.mch_id}"
+        resp = await self._request("GET", url_path, "")
+        if resp.status_code != 200:
+            return PaymentResult(
+                False, message=f"HTTP {resp.status_code}: {resp.text[:200]}"
+            )
+        self._verify_response(resp)
+        data = resp.json()
+        trade_state = str(data.get("trade_state", ""))
+        txn = str(data.get("transaction_id", transaction_id or ""))
+        ok = trade_state == "SUCCESS"
+        return PaymentResult(
+            success=ok, transaction_id=txn, message=f"trade_state={trade_state}"
+        )

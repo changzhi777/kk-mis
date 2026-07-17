@@ -99,8 +99,19 @@ def test_parse_notify_bad_signature_returns_none(gw):
     assert g.parse_notify(ts, nonce, body, "YmFkc2ln==") is None
 
 
-def test_pay_not_implemented_without_real_cert(gw):
+def test_pay_refund_query_raise_without_merchant_key(gw):
+    """无商户私钥时 pay/refund/query 调签名链 → RuntimeError（P0 #5 代码侧已实现，真连待密钥）。
+
+    旧桩抛 NotImplementedError；P0 Day 2.5 实装真 V3 签名后改为"缺商户私钥"
+    RuntimeError。端到端下单/退款/查单的签名/验签/解析逻辑见
+    test_wechat_pay_native.py（自签 RSA + 自签平台证书，无商户密钥亦覆盖）。
+    """
     g, _ = gw
+    g.mch_private_key = None  # 显式保证无商户私钥（dev/test gw 默认即空）
     import asyncio
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(RuntimeError, match="缺商户私钥"):
         asyncio.run(g.pay(1, 100))
+    with pytest.raises(RuntimeError, match="缺商户私钥"):
+        asyncio.run(g.query(1))
+    with pytest.raises(RuntimeError, match="缺商户私钥"):
+        asyncio.run(g.refund(1, "txn", 10))
