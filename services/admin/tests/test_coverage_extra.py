@@ -11,18 +11,30 @@ import pytest
 
 # ── office/engine ──────────────────────────────────────────
 def test_data_to_excel_dict_rows(tmp_path):
-    """list[dict] → xlsx（openpyxl 已装）。"""
+    """list[dict] → xlsx（openpyxl 已装）。
+
+    2026-07-17 OFFICE-ENGINE-SANDBOX：engine 现在接收 workspace + 相对路径。
+    """
     from app.services.office.engine import data_to_excel
-    out = tmp_path / "dict.xlsx"
-    data_to_excel([{"name": "张三", "age": 30}, {"name": "李四", "age": 25}], str(out))
+    from app.services.office.workspace import OfficeWorkspace
+    ws = OfficeWorkspace(tmp_path / "ws")
+    out = data_to_excel(
+        ws,
+        [{"name": "张三", "age": 30}, {"name": "李四", "age": 25}],
+    )
     assert out.exists() and out.stat().st_size > 0
 
 
 def test_data_to_excel_list_rows_with_headers(tmp_path):
     """list[list] + headers → xlsx。"""
     from app.services.office.engine import data_to_excel
-    out = tmp_path / "list.xlsx"
-    data_to_excel([["张三", 30], ["李四", 25]], str(out), headers=["姓名", "年龄"])
+    from app.services.office.workspace import OfficeWorkspace
+    ws = OfficeWorkspace(tmp_path / "ws")
+    out = data_to_excel(
+        ws,
+        [["张三", 30], ["李四", 25]],
+        headers=["姓名", "年龄"],
+    )
     assert out.exists()
 
 
@@ -33,46 +45,62 @@ def test_html_to_pdf_or_skip(tmp_path):
     except (ImportError, OSError):
         pytest.skip("weasyprint 不可用（缺系统库 libgobject-2.0-0 等）")
     from app.services.office.engine import html_to_pdf
-    out = tmp_path / "t.pdf"
-    html_to_pdf("<h1>标题</h1><p>内容</p>", str(out))
+    from app.services.office.workspace import OfficeWorkspace
+    ws = OfficeWorkspace(tmp_path / "ws")
+    out = html_to_pdf(ws, "<h1>标题</h1><p>内容</p>")
     assert out.exists()
 
 
 def test_docx_to_pdf_missing_file(tmp_path):
-    """docx_to_pdf 文件不存在 → OfficeEngineError。"""
-    from app.services.office.engine import OfficeEngineError, docx_to_pdf
-    with pytest.raises(OfficeEngineError, match="文件不存在"):
-        docx_to_pdf(tmp_path / "nope.docx")
+    """docx_to_pdf 沙箱内文件不存在 → FileNotFoundError（由 workspace.resolve 抛）。"""
+    from app.services.office.workspace import OfficeWorkspace
+    ws = OfficeWorkspace(tmp_path / "ws")
+    with pytest.raises(FileNotFoundError):
+        from app.services.office.engine import docx_to_pdf
+        docx_to_pdf(ws, "nope.docx")
 
 
 def test_fill_form_missing_template(tmp_path):
-    """fill_form 模板不存在 → OfficeEngineError（docxtpl 未装则 skip）。"""
+    """fill_form 沙箱内模板不存在 → FileNotFoundError。"""
     try:
         import docxtpl  # noqa: F401
     except ImportError:
         pytest.skip("docxtpl 未装")
-    from app.services.office.engine import OfficeEngineError, fill_form
-    with pytest.raises(OfficeEngineError, match="模板不存在"):
-        fill_form(tmp_path / "nope.docx", {"a": 1})
+    from app.services.office.engine import fill_form
+    from app.services.office.workspace import OfficeWorkspace
+    ws = OfficeWorkspace(tmp_path / "ws")
+    with pytest.raises(FileNotFoundError):
+        fill_form(ws, "nope.docx", {"a": 1})
 
 
 @pytest.mark.asyncio
 async def test_batch_process_copy(tmp_path):
-    """batch_process copy 操作（shutil，不依赖 office 库）。"""
+    """batch_process copy 操作（shutil，不依赖 office 库）。
+
+    2026-07-17 OFFICE-ENGINE-SANDBOX：接受 workspace + 沙箱内相对路径。
+    """
     from app.services.office.engine import batch_process
-    (tmp_path / "a.txt").write_text("x")
-    (tmp_path / "b.txt").write_text("y")
-    results = await batch_process(str(tmp_path), "copy", str(tmp_path / "out"))
+    from app.services.office.workspace import OfficeWorkspace
+    ws = OfficeWorkspace(tmp_path / "ws")
+    in_dir = ws.root / "in"
+    in_dir.mkdir()
+    (in_dir / "a.txt").write_text("x")
+    (in_dir / "b.txt").write_text("y")
+    results = await batch_process(ws, input_dir="in", operation="copy")
     assert len(results) == 2
-    assert (tmp_path / "out" / "a.txt").exists()
+    assert (ws.root / "in" / "output_copy" / "a.txt").exists()
 
 
 @pytest.mark.asyncio
 async def test_batch_process_unknown_op_skipped(tmp_path):
     """batch_process 未知操作 → 文件被 except 跳过（不崩，results 空）。"""
     from app.services.office.engine import batch_process
-    (tmp_path / "a.txt").write_text("x")
-    results = await batch_process(str(tmp_path), "unknown_op")
+    from app.services.office.workspace import OfficeWorkspace
+    ws = OfficeWorkspace(tmp_path / "ws")
+    in_dir = ws.root / "in"
+    in_dir.mkdir()
+    (in_dir / "a.txt").write_text("x")
+    results = await batch_process(ws, input_dir="in", operation="unknown_op")
     assert results == []
 
 
@@ -80,8 +108,12 @@ async def test_batch_process_unknown_op_skipped(tmp_path):
 async def test_batch_process_pdf_skips_non_docx(tmp_path):
     """batch_process pdf 操作跳过非 docx 文件。"""
     from app.services.office.engine import batch_process
-    (tmp_path / "a.txt").write_text("x")
-    results = await batch_process(str(tmp_path), "pdf", str(tmp_path / "out"))
+    from app.services.office.workspace import OfficeWorkspace
+    ws = OfficeWorkspace(tmp_path / "ws")
+    in_dir = ws.root / "in"
+    in_dir.mkdir()
+    (in_dir / "a.txt").write_text("x")
+    results = await batch_process(ws, input_dir="in", operation="pdf")
     assert results == []  # txt 不转
 
 

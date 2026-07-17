@@ -61,11 +61,31 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"DB init failed: {e}")
     await cache.init()  # Redis 缓存层（fail-open，失败不影响启动）
+
+    # ── Office Engine 沙箱（2026-07-17 OFFICE-ENGINE-SANDBOX）──
+    # 初始化统一 workspace，挂到 app.state；后台任务定期清理过期临时文件
+    from .services.office.workspace import OfficeWorkspace
+    app.state.office_workspace = OfficeWorkspace(settings.office_workspace_root)
+    app.state.office_cleanup_task = asyncio.create_task(_office_cleanup_loop(app))
+    logger.info(
+        f"Office workspace ready: root={settings.office_workspace_root} "
+        f"tmp_ttl={settings.office_workspace_tmp_ttl}s "
+        f"cleanup_interval={settings.office_workspace_cleanup_interval}s"
+    )
+
     # 发卡重试 poller（P0 Day 2：扫描 WebhookRetry 到期任务兜底发卡）
     from .services.payment_fulfillment import start_retry_poller
     poller_task = asyncio.create_task(start_retry_poller())
     yield
     poller_task.cancel()
+    # 收尾 office cleanup 后台任务
+    cleanup_task = getattr(app.state, "office_cleanup_task", None)
+    if cleanup_task is not None:
+        cleanup_task.cancel()
+        try:
+            await cleanup_task
+        except asyncio.CancelledError:
+            pass
     try:
         await poller_task
     except asyncio.CancelledError:
@@ -79,6 +99,26 @@ async def lifespan(app: FastAPI):
     await cache.close()
     await close_db()
     logger.info("kk-cms Admin 关闭")
+
+
+async def _office_cleanup_loop(app) -> None:
+    """Office 临时文件定期清理后台任务（lifespan 启动）。
+
+    每 ``OFFICE_WORKSPACE_CLEANUP_INTERVAL`` 秒扫一次 workspace，
+    删除 mtime 超过 ``OFFICE_WORKSPACE_TMP_TTL`` 秒的 ``_tmp_*`` 文件。
+    任何异常仅 warning，不退出循环（资源清理是 best-effort）。
+    """
+    interval = settings.office_workspace_cleanup_interval or 600
+    while True:
+        try:
+            ws = getattr(app.state, "office_workspace", None)
+            if ws is not None:
+                ws.cleanup(max_age_seconds=settings.office_workspace_tmp_ttl or 3600)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.warning(f"office cleanup loop iter failed: {e}")
+        await asyncio.sleep(interval)
 
 
 app = FastAPI(

@@ -135,6 +135,11 @@ class Settings(BaseModel):
     alipay_public_key_path: str = ""
     alipay_private_key_path: str = ""
 
+    # ── Office Engine 沙箱（2026-07-17 OFFICE-ENGINE-SANDBOX 修复）──
+    office_workspace_root: str = ""          # 沙箱根目录（绝对路径或相对 cwd）
+    office_workspace_tmp_ttl: int = 0        # 临时文件 TTL（秒，默认 3600 = 1 小时）
+    office_workspace_cleanup_interval: int = 0  # 后台清理间隔（秒，默认 600 = 10 分钟）
+
     # 日志
     log_level: str = ""
 
@@ -200,6 +205,12 @@ class Settings(BaseModel):
             alipay_app_id=_env("ALIPAY_APP_ID", ""),
             alipay_public_key_path=_env("ALIPAY_PUBLIC_KEY_PATH", ""),
             alipay_private_key_path=_env("ALIPAY_PRIVATE_KEY_PATH", ""),
+            # ── Office Engine 沙箱 ──
+            office_workspace_root=_env("OFFICE_WORKSPACE_ROOT", "./storage/office_workspace"),
+            office_workspace_tmp_ttl=_env_int("OFFICE_WORKSPACE_TMP_TTL", 3600),
+            office_workspace_cleanup_interval=_env_int(
+                "OFFICE_WORKSPACE_CLEANUP_INTERVAL", 600
+            ),
         )
 
     @model_validator(mode="after")

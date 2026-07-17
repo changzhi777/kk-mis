@@ -14,11 +14,12 @@
 from __future__ import annotations
 
 import json
-import tempfile
+import logging
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
@@ -26,9 +27,29 @@ from ..deps import get_current_user, require_permission
 from ..models import User
 from ..services.office import bridge
 from ..services.office.bridge import OFFICE_TOOLS, OfficeBridgeUnavailable
-from ..services.office.engine import OfficeEngineError, batch_process, data_to_excel, docx_to_pdf, fill_form, html_to_pdf, template_to_pptx
+from ..services.office.engine import (
+    OfficeEngineError,
+    batch_process,
+    data_to_excel,
+    docx_to_pdf,
+    fill_form,
+    html_to_pdf,
+    template_to_pptx,
+)
+from ..services.office.workspace import OfficeWorkspace
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/office", tags=["office"])
+
+
+def _get_workspace(request: Request) -> OfficeWorkspace:
+    """从 app.state 取统一 workspace 沙箱（lifespan 启动时挂上）。"""
+    ws = getattr(request.app.state, "office_workspace", None)
+    if ws is None:
+        # 兜底：lifespan 未跑（如 bare TestClient 无 lifespan）→ 直接拒绝
+        raise HTTPException(status_code=503, detail="office workspace 未初始化")
+    return ws
 
 # format → oa-agent read 工具名
 _READ_TOOL: dict[str, str] = {
@@ -210,13 +231,16 @@ class BatchRequest(BaseModel):
 
 @router.post("/pdf")
 async def to_pdf(
+    request: Request,
     file: UploadFile = File(...),
     _user: User = Depends(require_permission("office:tool:invoke")),
 ):
-    """上传 docx/html 文件 → PDF。
+    """上传 docx/html 文件 → PDF（**2026-07-17 重写**）。
 
-    按上传文件后缀分流：.docx 走 mammoth + weasyprint；.html/.htm 读取后直接 weasyprint。
-    其他扩展名一律 400。
+    路径遏制：上传文件先写到 workspace 沙箱内临时路径，再调 engine；
+    engine 全部输入/输出走 workspace，沙箱外不可达。
+    线程池卸载：重 CPU（weasyprint）经 ``run_in_threadpool`` 卸到
+    anyio 默认线程池，避免阻塞 FastAPI 事件循环。
     """
     suffix = Path(file.filename or "").suffix.lower()
     if suffix not in {".docx", ".html", ".htm"}:
@@ -225,59 +249,81 @@ async def to_pdf(
             detail=f"不支持的文件类型: {suffix!r}（仅支持 .docx / .html）",
         )
     raw = await file.read()
-    tmp_src = Path(tempfile.mkstemp(suffix=suffix)[1])
+    workspace = _get_workspace(request)
+
+    # 上传文件入沙箱（temp_path 不创建文件 → write_bytes 完成）
+    tmp_src = workspace.temp_path(suffix=suffix)
     tmp_src.write_bytes(raw)
-    out_pdf = tmp_src.with_suffix(".pdf")
+
+    download_name = (Path(file.filename or "converted").stem or "converted") + ".pdf"
     try:
         if suffix == ".docx":
-            docx_to_pdf(tmp_src, out_pdf)
+            out_pdf = await run_in_threadpool(
+                docx_to_pdf, workspace, str(tmp_src.name)
+            )
         else:
-            html_to_pdf(raw.decode("utf-8", errors="replace"), out_pdf)
+            html = raw.decode("utf-8", errors="replace")
+            out_pdf = await run_in_threadpool(html_to_pdf, workspace, html)
     except OfficeEngineError as exc:
         raise HTTPException(status_code=400, detail=f"PDF 转换失败: {exc}") from exc
     return FileResponse(
         path=str(out_pdf),
         media_type="application/pdf",
-        filename=(Path(file.filename or "converted").stem or "converted") + ".pdf",
+        filename=download_name,
     )
 
 
 @router.post("/excel")
 async def to_excel(
+    request: Request,
     req: ExcelRequest,
     _user: User = Depends(require_permission("office:tool:invoke")),
 ):
-    """JSON 数据 → xlsx（openpyxl）。"""
-    out = Path(tempfile.mkstemp(suffix=".xlsx")[1])
+    """JSON 数据 → xlsx（openpyxl，线程池卸载）。"""
+    workspace = _get_workspace(request)
     try:
-        data_to_excel(req.data, out, headers=req.headers, sheet_name=req.sheet_name)
+        out = await run_in_threadpool(
+            data_to_excel, workspace, req.data, None,
+            req.headers, req.sheet_name,
+        )
     except OfficeEngineError as exc:
         raise HTTPException(status_code=400, detail=f"Excel 生成失败: {exc}") from exc
-    return FileResponse(path=str(out), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", filename="data.xlsx")
+    return FileResponse(
+        path=str(out),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        filename="data.xlsx",
+    )
 
 
 @router.post("/pptx")
 async def to_pptx(
+    request: Request,
     req: PptxRequest,
     _user: User = Depends(require_permission("office:tool:invoke")),
 ):
-    """JSON slides → pptx（python-pptx）。"""
-    out = Path(tempfile.mkstemp(suffix=".pptx")[1])
+    """JSON slides → pptx（python-pptx，线程池卸载）。"""
+    workspace = _get_workspace(request)
     try:
-        template_path = req.template if req.template else None
-        template_to_pptx(req.slides, out, template=template_path)
+        out = await run_in_threadpool(
+            template_to_pptx, workspace, req.slides, None, req.template,
+        )
     except OfficeEngineError as exc:
         raise HTTPException(status_code=400, detail=f"PPT 生成失败: {exc}") from exc
-    return FileResponse(path=str(out), media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation", filename="report.pptx")
+    return FileResponse(
+        path=str(out),
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        filename="report.pptx",
+    )
 
 
 @router.post("/form")
 async def fill_form_endpoint(
+    request: Request,
     file: UploadFile = File(..., description="含 {{ var }} 占位的 docx 模板"),
     data: str = Form(..., description="JSON 字符串变量字典，如 {\"party_a\":\"大华天麓\"}"),
     _user: User = Depends(require_permission("office:tool:invoke")),
 ):
-    """上传 docx 模板 + JSON 变量 → 填充后 docx（docxtpl）。"""
+    """上传 docx 模板 + JSON 变量 → 填充后 docx（docxtpl，线程池卸载）。"""
     try:
         variables: dict[str, Any] = json.loads(data)
     except json.JSONDecodeError as exc:
@@ -286,28 +332,42 @@ async def fill_form_endpoint(
         raise HTTPException(status_code=400, detail="data 必须是 JSON 对象")
 
     raw = await file.read()
-    tmp_tpl = Path(tempfile.mkstemp(suffix=".docx")[1])
+    workspace = _get_workspace(request)
+
+    # 模板入沙箱（temp_path → write_bytes）
+    tmp_tpl = workspace.temp_path(suffix=".docx")
     tmp_tpl.write_bytes(raw)
-    out = tmp_tpl.with_name(f"{tmp_tpl.stem}_filled.docx")
+
+    download_name = (Path(file.filename or "filled").stem or "filled") + "_filled.docx"
     try:
-        fill_form(tmp_tpl, variables, out)
+        out = await run_in_threadpool(
+            fill_form, workspace, str(tmp_tpl.name), variables, None,
+        )
     except OfficeEngineError as exc:
         raise HTTPException(status_code=400, detail=f"表单填充失败: {exc}") from exc
     return FileResponse(
         path=str(out),
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        filename=(Path(file.filename or "filled").stem or "filled") + "_filled.docx",
+        filename=download_name,
     )
 
 
 @router.post("/batch")
 async def batch_endpoint(
+    request: Request,
     req: BatchRequest,
     _user: User = Depends(require_permission("office:tool:invoke")),
 ):
-    """文件夹批量处理（pdf/form/copy），返回处理结果路径列表。"""
+    """文件夹批量处理（pdf/form/copy），input/output 目录必须在沙箱内。
+
+    batch_process 本身是 async（内部有顺序 IO），但循环内每个 docx_to_pdf /
+    fill_form 都是同步 CPU 重任务，由 batch_process 内部走 threadpool；
+    整批逻辑保持异步路由包装。
+    """
+    workspace = _get_workspace(request)
     try:
         results = await batch_process(
+            workspace,
             input_dir=req.input_dir,
             operation=req.operation,
             output_dir=req.output_dir,
@@ -315,10 +375,17 @@ async def batch_endpoint(
         )
     except OfficeEngineError as exc:
         raise HTTPException(status_code=400, detail=f"批量处理失败: {exc}") from exc
+    # 结果路径裁剪为相对沙箱路径（防泄露服务器绝对路径）
+    rels = []
+    for p in results:
+        try:
+            rels.append(str(p.relative_to(workspace.root)))
+        except ValueError:
+            rels.append(str(p))
     return {
         "operation": req.operation,
         "input_dir": req.input_dir,
-        "output_dir": str(req.output_dir or Path(req.input_dir) / f"output_{req.operation}"),
-        "processed": [str(p) for p in results],
+        "output_dir": req.output_dir or f"{req.input_dir.rstrip('/')}/output_{req.operation}",
+        "processed": rels,
         "count": len(results),
     }
