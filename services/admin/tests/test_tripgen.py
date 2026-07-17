@@ -128,6 +128,73 @@ def test_api_preview_no_title(client, auth_header):
     assert r.status_code == 400
 
 
+# ── 交付闭环（2026-07-17 TRIPGEN-DELIVERY）─────────────────────
+
+def test_api_generate_returns_workspace_keys(client, auth_header, sample_trip_data):
+    """/generate 返回 workspace 相对 key，不泄露服务器绝对路径。"""
+    r = client.post(
+        "/admin/api/v1/tripgen/generate",
+        json=sample_trip_data,
+        headers=auth_header,
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["count"] >= 1
+    assert len(data["files"]) >= 1
+    for f in data["files"]:
+        # 相对 key：不以分隔符开头；落在 _tmp_tripgen_ 任务目录下
+        assert not f.startswith("/")
+        assert "_tmp_tripgen_" in f
+
+
+def test_api_download_asset(client, auth_header, sample_trip_data):
+    """generate 后凭 key 调 /download 能拿到文件内容。"""
+    g = client.post(
+        "/admin/api/v1/tripgen/generate",
+        json=sample_trip_data,
+        headers=auth_header,
+    )
+    assert g.status_code == 200
+    key = g.json()["files"][0]
+    d = client.get(f"/admin/api/v1/tripgen/download/{key}", headers=auth_header)
+    assert d.status_code == 200
+    assert len(d.content) > 0
+
+
+def test_api_download_not_found(client, auth_header):
+    """/download 不存在/已过期文件 → 404。"""
+    d = client.get(
+        "/admin/api/v1/tripgen/download/_tmp_tripgen_none/notexist.html",
+        headers=auth_header,
+    )
+    assert d.status_code == 404
+
+
+def test_workspace_resolve_rejects_traversal(client):
+    """workspace.resolve 拒绝路径遍历与绝对路径（单元级，绕开 HTTP URL 规范化）。"""
+    ws = client.app.state.office_workspace
+    import pytest
+    with pytest.raises(ValueError):
+        ws.resolve("../etc/passwd")
+    with pytest.raises(ValueError):
+        ws.resolve("/etc/passwd")
+
+
+def test_workspace_cleanup_removes_tripgen_dirs(client, tmp_path, monkeypatch):
+    """workspace.cleanup() 能回收过期的 _tmp_tripgen_ 任务目录。"""
+    ws = client.app.state.office_workspace
+    job = ws.root / "_tmp_tripgen_cleanup_test"
+    job.mkdir(parents=True, exist_ok=True)
+    (job / "body.html").write_bytes(b"<html>test</html>")
+    # 把 mtime 抚到 2 小时前，触发默认 1h TTL
+    import time
+    old = time.time() - 7200
+    os.utime(job, (old, old))
+    removed = ws.cleanup(max_age_seconds=3600)
+    assert removed >= 1
+    assert not job.exists()
+
+
 # ── CLI 冒烟 ──────────────────────────────────────────────────
 
 def test_cli_init(tmp_path):

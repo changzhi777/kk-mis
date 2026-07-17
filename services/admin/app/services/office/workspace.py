@@ -101,21 +101,34 @@ class OfficeWorkspace:
     # ── 过期清理 ──────────────────────────────────────────────
 
     def cleanup(self, max_age_seconds: int = 3600) -> int:
-        """清理过期的临时文件（默认 1 小时）。
+        """清理过期的临时文件与任务子目录（默认 1 小时）。
+
+        覆盖两类 ``_tmp_`` 前缀条目：
+        - 临时文件（office engine ``temp_path()`` 产出）；
+        - 临时目录（tripgen 任务产物 ``_tmp_tripgen_*`` 等），按目录 mtime 整体
+          删除含内容；tripgen 生成完不再写入，mtime 停在生成时，TTL 后回收。
 
         Returns:
-            实际删除文件数（用于测试断言 / 日志）。
+            实际删除的文件 + 目录数（用于测试断言 / 日志）。
         """
+        import shutil
+
         cutoff = time.time() - max_age_seconds
         removed = 0
         for p in self.root.glob(f"{_TMP_PREFIX}*"):
             try:
-                if p.is_file() and p.stat().st_mtime < cutoff:
+                if p.is_dir():
+                    if p.stat().st_mtime < cutoff:
+                        shutil.rmtree(p)
+                        removed += 1
+                elif p.is_file() and p.stat().st_mtime < cutoff:
                     p.unlink()
                     removed += 1
             except (FileNotFoundError, PermissionError) as e:
-                # 文件在扫描间隙被删/无权访问 → 跳过即可
+                # 条目在扫描间隙被删/无权访问 → 跳过即可
                 logger.debug(f"office cleanup skip {p}: {e}")
         if removed:
-            logger.info(f"OfficeWorkspace cleanup: removed {removed} files (>{max_age_seconds}s)")
+            logger.info(
+                f"OfficeWorkspace cleanup: removed {removed} entries (>{max_age_seconds}s)"
+            )
         return removed
