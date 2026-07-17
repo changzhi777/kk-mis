@@ -279,6 +279,7 @@ class WechatPayV3Gateway:
             mch_id=settings.wechat_pay_mch_id,
             app_id=settings.wechat_pay_app_id,
             mch_private_key=mch_key,
+            mch_serial_no=settings.wechat_pay_mch_serial_no,
             notify_url=settings.wechat_pay_notify_url,
         )
 

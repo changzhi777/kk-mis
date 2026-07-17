@@ -129,6 +129,7 @@ class Settings(BaseModel):
     wechat_pay_api_v3_key: str = ""
     wechat_pay_platform_cert_path: str = ""
     wechat_pay_mch_private_key_path: str = ""
+    wechat_pay_mch_serial_no: str = ""  # 商户证书序列号（请求签名 Authorization serial_no）
     wechat_pay_notify_url: str = ""
     # 支付宝（预留，暂不启用）
     alipay_app_id: str = ""
@@ -201,6 +202,7 @@ class Settings(BaseModel):
             wechat_pay_api_v3_key=_env("WECHAT_PAY_API_V3_KEY", ""),
             wechat_pay_platform_cert_path=_env("WECHAT_PAY_PLATFORM_CERT_PATH", ""),
             wechat_pay_mch_private_key_path=_env("WECHAT_PAY_MCH_PRIVATE_KEY_PATH", ""),
+            wechat_pay_mch_serial_no=_env("WECHAT_PAY_MCH_SERIAL_NO", ""),
             wechat_pay_notify_url=_env("WECHAT_PAY_NOTIFY_URL", ""),
             alipay_app_id=_env("ALIPAY_APP_ID", ""),
             alipay_public_key_path=_env("ALIPAY_PUBLIC_KEY_PATH", ""),
@@ -244,6 +246,8 @@ class Settings(BaseModel):
                     ("WECHAT_PAY_API_V3_KEY", self.wechat_pay_api_v3_key),
                     ("WECHAT_PAY_PLATFORM_CERT_PATH", self.wechat_pay_platform_cert_path),
                     ("WECHAT_PAY_MCH_PRIVATE_KEY_PATH", self.wechat_pay_mch_private_key_path),
+                    ("WECHAT_PAY_MCH_SERIAL_NO", self.wechat_pay_mch_serial_no),
+                    ("WECHAT_PAY_NOTIFY_URL", self.wechat_pay_notify_url),
                 )
                 if not val
             ]
