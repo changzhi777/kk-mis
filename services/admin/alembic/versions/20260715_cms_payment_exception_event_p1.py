@@ -25,8 +25,8 @@ from sqlalchemy import inspect
 
 
 # Alembic revision identifiers.
-revision: str = "20260715_cms_payment_exception_event_p1"
-down_revision: str | Sequence[str] | None = "20260715_cms_payment_webhook_p0"
+revision: str = "cms_pmt_exc"
+down_revision: str | Sequence[str] | None = "cms_pmt_p0"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

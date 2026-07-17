@@ -29,8 +29,8 @@ from sqlalchemy import inspect
 
 
 # Alembic revision identifiers.
-revision: str = "20260717_cms_media_asset_storage_cols"
-down_revision: str | Sequence[str] | None = "20260715_cms_payment_exception_event_p1"
+revision: str = "cms_media_cols"
+down_revision: str | Sequence[str] | None = "cms_pmt_exc"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

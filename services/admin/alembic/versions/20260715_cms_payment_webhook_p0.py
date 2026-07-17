@@ -25,7 +25,7 @@ from sqlalchemy import inspect
 from sqlalchemy.dialects import postgresql
 
 # Alembic revision identifiers.
-revision: str = "20260715_cms_payment_webhook_p0"
+revision: str = "cms_pmt_p0"
 down_revision: str | Sequence[str] | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
