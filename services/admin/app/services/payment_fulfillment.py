@@ -428,7 +428,11 @@ async def process_issue_task(
         job.attempts = (job.attempts or 0) + 1
         job.last_error = str(e)
         if job.attempts >= MAX_RETRY_ATTEMPTS:
-            job.status = "failed"
+            # 接入 mark_job_failed（修"重试耗尽静默"缺口，2026-07-18）：同步订单
+            # status=failed + 写 critical 异常事件 + Prometheus 计数。alert_callback
+            # 由外层按需注入（process_issue_task 不传 → 走默认日志+指标，不阻塞）。
+            # job.status / last_error / locked_at 由 mark_job_failed 内部统一设置。
+            await mark_job_failed(session, job, str(e))
         else:
             job.status = "retry"
             idx = min(job.attempts - 1, len(_RETRY_BACKOFF_SECONDS) - 1)
