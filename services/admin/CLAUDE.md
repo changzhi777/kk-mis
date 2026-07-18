@@ -876,7 +876,7 @@ draft ⇄ published ⇄ archived    → 路由未限制迁移方向
 
 ### §7.19 P0 Day 1.1 alembic migration 详解（`alembic/versions/20260715_cms_payment_webhook_p0.py` · 草案）
 
-> ⚠️ **当前状态**：admin 服务**尚未启用 alembic**（仓库内无 `alembic/` 目录）。本节是 P0 Day 1.1 实施产物的**设计草案**，落到代码时需先 `alembic init alembic` + 配 `env.py` 指向 `Base.metadata`，再落本文件。下方 SQL 是兼容 SQLite（开发）与 PostgreSQL（生产）的版本；ENUM 在 SQLite 退化为 `VARCHAR + CHECK`。
+> ⚠️ **当前状态（🆕 第九轮校准）**：admin 服务**已启用 alembic**（`alembic/` 目录 + 3 个 version 文件，非"尚未启用"）。本节是 P0 Day 1.1 实施前的**设计草案存档**，下方代码示例里的 revision id 为草案旧值；**实际 revision id 已在 `f48d86d` 缩短 < 32 字符**（适配 PG `version_num varchar(32)`，生产 `upgrade head` 曾卡 `StringDataRightTruncationError`）：`cms_payment_webhook_p0`→`cms_pmt_p0`、`cms_payment_exception_event_p1`→`cms_pmt_exc`、`cms_media_asset_storage_cols`→`cms_media_cols`（heads=1）。version 文件名（`20260715_*.py` / `20260717_*.py`）未改，仅 revision 字符串值缩短。SQL 兼容 SQLite（开发）与 PostgreSQL（生产）；ENUM 在 SQLite 退化为 `VARCHAR + CHECK`。
 
 #### 迁移文件骨架
 

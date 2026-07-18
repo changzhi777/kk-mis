@@ -4,6 +4,16 @@
 
 ## 变更记录 (Changelog)
 
+- 2026-07-17 21:22 — 第九轮续跑（init-project，主智能体直做——harness 无 Agent 子智能体入口）：第八轮之后 2 commit 增量核对 + revision id 生产阻塞根因记录：
+  - `68261f1` docs: **P0 微信支付灰度 + 生产 alembic 收敛 runbook**（`docs/p0-wechat-greyscale-runbook.md` +137 行；Part A A0-A5 灰度 + Part B B1-B4 stamp/upgrade 决策）；
+  - `f48d86d` fix(alembic): **revision id 缩短 < 32 适配 PG `version_num varchar(32)`（生产部署 setback 根因）**——生产 `alembic upgrade head` 卡 `StringDataRightTruncationError`（旧 id `exception_event_p1`=40 / `storage_cols`=38 字符超长）；**SQLite 不强制 varchar（本地盲区），PG 强制**；缩短 `cms_payment_webhook_p0`→`cms_pmt_p0`(10) / `cms_payment_exception_event_p1`→`cms_pmt_exc`(11) / `cms_media_asset_storage_cols`→`cms_media_cols`(14)，down_revision 链同步，heads=1；
+  - **测试不受影响**：`rg` 确认 `tests/` 无 revision id 字符串引用 → 第八轮 463/0/6 基线保持，本轮不重跑；HEAD `f48d86d`，ahead 27；仅文档核对（同步校准 runbook B1-B4 旧 id + 根/admin 文档残留）。
+- 2026-07-17 — 第八轮·实施续（P0 #5 代码侧 + TripGen 交付闭环 + PROD-SCHEMA-DRIFT，主智能体直做）：
+  - **P0 #5 wechat_pay pay/refund/query 实装**（commit `418692a`，`wechat_pay.py` +~200 行，手写微信支付 V3 签名 `WECHATPAY2-SHA256-RSA2048`，不黑盒 SDK；`_build_authorization`/`_request`/`_verify_response` + pay(Native→code_url)/refund/query；金额 Decimal HALF_UP 元→分；`test_wechat_pay_native.py` 11 项自签 RSA+X.509 覆盖）；
+  - **mch_serial_no 配置链修复**（commit `fb47a49`，from_settings 注入商户证书序列号 + `.env.example` 补全，P0 #5 灰度就绪）；
+  - **alembic cms_media_asset 4 列幂等 revision**（commit `4194544`，PROD-SCHEMA-DRIFT，inspector checkfirst 幂等 + SQLite batch downgrade + 临时库端到端验证）；
+  - **TripGen 交付闭环**（commit `1340df6`，workspace `_tmp_tripgen_{uuid}` 相对 key + `GET /download/{file_key:path}` + cleanup 目录回收，5 单测）；
+  - 测试基线 422 → **463 passed / 0 failed / 6 skipped (230.14s)**。
 - 2026-07-17 — admin 36 项审计 4 处偏差修复 + round_7 收尾：
   - **commit `47f03ef`** 修 36 项审计 4 处代码 vs 记忆偏差：
     - 登录按 IP 限流 10/min（复用 cache.rate_limit_check，Redis fail-open）
@@ -284,7 +294,7 @@ docker compose up -d
 
 ## 测试策略 (Testing)
 
-### 测试全景（2026-07-17 第七轮重置基线）
+### 测试全景（2026-07-17 第七轮重置基线 · 🆕 第八轮·实施续 463/0/6 实测）
 
 | 维度 | 7-14 数字 | 7-15 数字 | 7-16 round6 | 7-17 round7 | 说明 |
 |------|----------|----------|-------------|-------------|------|
@@ -299,7 +309,9 @@ docker compose up -d
 | storage 集成 | n/a | 6 桩 | 6 桩 | 6 桩 | 需 INTEGRATION env 自动 skip |
 | **P0 真支付** | n/a | n/a | **64 项 P0 测试** | 64 项 | Day 1 数据底座 + Day 2 业务层（4 项 critical 缺口修复） |
 
-> 详见 memory `project-fullstack-audit-2026-07-14.md` + `project-comprehensive-test-2026-07-13.md` + `project-sprint0-storage-2026-07-14.md`。
+> 🆕 **第八轮·实施续重置基线（2026-07-17，commit `4194544`/`1340df6`/`418692a`/`fb47a49` 后实测）**：**463 passed / 0 failed / 6 skipped (230.14s)**（422 + wechat_pay_native 11 + tripgen 5 + alembic 幂等用例）；第九轮 `f48d86d` revision id 改名 `rg` 确认 `tests/` 无 id 引用 → 不影响测试，未重跑。
+
+> 详见 memory `project-fullstack-audit-2026-07-14.md` + `project-comprehensive-test-2026-07-13.md` + `project-sprint0-storage-2026-07-14.md` + `project-round8-implementation-2026-07-17.md`。
 
 ### 后端 pytest（admin）
 
@@ -500,11 +512,12 @@ pnpm test:coverage # 覆盖率
 - ✅ admin CLAUDE.md §7.23-§7.27 校准（1773 行）
 - ✅ memory 沉淀（project-p0-day2-implementation-2026-07-16.md）
 
-### 2026-07-17 仍开放
-- ⏸ P0 #5 真 Native API（需 `WECHAT_PAY_MCH_ID/APP_ID/API_V3_KEY` 商户资料）
-- ⏸ PROD-SCHEMA-DRIFT（nanoai 生产手工补 `cms_media_asset` 4 列未写 alembic revision）
-- ⏸ TRIPGEN-DELIVERY（generate 临时路径无下载/COS/清理闭环）
-- ⏸ OFFICE-ENGINE-SANDBOX（本地 5 端点 workspace 未统一 + 临时文件清理）
+### 2026-07-17 仍开放（🆕 第九轮校准，多项 ⏸ → ✅）
+- ✅ P0 #5 真 Native API（代码侧就绪，commit `418692a`+`fb47a49`；仅差商户资料灰度，见 `docs/p0-wechat-greyscale-runbook.md` Part A）
+- ✅ PROD-SCHEMA-DRIFT（**代码 + 生产双闭环**）：alembic revision `cms_media_cols`（commit `4194544`）+ `f48d86d` revision id < 32 解除生产 `upgrade head` 阻塞；**据 prod-db-truth memory（SSH 实测）：生产 admin 已部署 `f48d86d`，PG kk_mis `upgrade head` 到 `cms_media_cols` 成功**（P0 四表全建 + 服务 active）
+- ✅ TRIPGEN-DELIVERY（commit `1340df6`，workspace 相对 key + `/download` + cleanup 回收）
+- ✅ OFFICE-ENGINE-SANDBOX（commit `1c51bd5`，workspace 沙箱 + 临时清理 + 线程池卸载）
+- ✅ MIS-DOC-DRIFT（本轮第九轮已校准：补录第八/九轮 + 测试基线 463 + revision id 收敛 + 仍开放清单）
 - ⏸ NANOAI-INFRA-VERSIONING（生产 nginx 完整 server block 仅在服务器，未同步本地 infra/）
-- ⏸ MIS-DOC-DRIFT（本文件校准，下次续跑 round_8 处理；mis-system/CLAUDE.md 测试基线 245 → 422 已在 round_7 处理 — 即本次 commit）
 - ⏸ LEGACY-DEBT（voucher 双轨 + vite 双配置 + Univer chunk + agent rejected reclaim 等）
+- ⏸ P0 真连灰度（商户密钥 + 生产 alembic upgrade head，均用户/SSH 触发）

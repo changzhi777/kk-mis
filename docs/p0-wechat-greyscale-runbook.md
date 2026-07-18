@@ -84,11 +84,11 @@ A3 全绿 → 移除测试产品限制 → 开放正常商品 → 观察 24h `cm
 ssh root@43.129.201.118
 cd /opt/kk-mis/services/admin
 PYTHONPATH=. .venv/bin/alembic current    # 看生产 alembic_version 状态
-PYTHONPATH=. .venv/bin/alembic heads      # 应 1 head = 20260717_cms_media_asset_storage_cols
+PYTHONPATH=. .venv/bin/alembic heads      # 应 1 head = cms_media_cols
 ```
 
 看 `alembic current` 输出决策：
-- **输出某 revision**（如 `20260715_cms_payment_exception_event_p1 (head)`）→ 生产已跑过 alembic，走 **B2-upgrade**
+- **输出某 revision**（如 `cms_pmt_exc (head)`）→ 生产已跑过 alembic，走 **B2-upgrade**
 - **空 / 无 alembic_version 表** → 生产一直靠 `create_all`，走 **B2-stamp**
 
 ### B2. 决策路径
@@ -96,8 +96,8 @@ PYTHONPATH=. .venv/bin/alembic heads      # 应 1 head = 20260717_cms_media_asse
 **路径 1（生产已有 alembic 历史）→ 直接 upgrade**：
 ```bash
 PYTHONPATH=. .venv/bin/alembic upgrade head
-# storage_cols 幂等：生产 cms_media_asset 已有 4 列（2026-07-16 手工 ALTER）
-# → inspector checkfirst 跳过，仅更新版本标记到 storage_cols
+# cms_media_cols 幂等：生产 cms_media_asset 已有 4 列（2026-07-16 手工 ALTER）
+# → inspector checkfirst 跳过，仅更新版本标记到 cms_media_cols
 ```
 
 **路径 2（生产靠 create_all，无 alembic 历史）→ 先评估再 stamp**：
@@ -107,13 +107,13 @@ PYTHONPATH=. .venv/bin/alembic upgrade head
    - `cms_media_asset` 4 列（storage_backend/storage_key/etag/content_type）
    - `cms_product_order.status`（7 状态机字段）
 2. **全在** → `PYTHONPATH=. .venv/bin/alembic stamp head`（标记生产已到最新，不执行 DDL）
-3. **缺表/列** → `PYTHONPATH=. .venv/bin/alembic upgrade head`（建缺的；storage_cols 幂等加 4 列）
+3. **缺表/列** → `PYTHONPATH=. .venv/bin/alembic upgrade head`（建缺的；cms_media_cols 幂等加 4 列）
 
 ### B3. 验证收敛
 
 ```bash
 PYTHONPATH=. .venv/bin/alembic current
-# 期望：20260717_cms_media_asset_storage_cols (head)
+# 期望：cms_media_cols (head)
 
 # PG 抽查 cms_media_asset 4 列
 psql -U postgres -d kk_admin -c "\d cms_media_asset"
@@ -122,7 +122,7 @@ psql -U postgres -d kk_admin -c "\d cms_media_asset"
 ### B4. 回滚（downgrade）
 
 ```bash
-PYTHONPATH=. .venv/bin/alembic downgrade 20260715_cms_payment_exception_event_p1
+PYTHONPATH=. .venv/bin/alembic downgrade cms_pmt_exc
 # 删 cms_media_asset 4 列（PG 直接 DROP / SQLite batch 重建）
 # ⚠️ 生产回滚前确认无业务依赖这 4 列（Storage 抽象层在用 storage_backend/storage_key）
 ```
