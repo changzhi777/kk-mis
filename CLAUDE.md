@@ -4,6 +4,14 @@
 
 ## 变更记录 (Changelog)
 
+- 2026-07-20 10:42 — 第十轮续跑（init-project，主智能体直做）：**无代码增量核对 + 补录第九轮会话测试任务成果**：
+  - **增量核对**（2 天，07-18→07-20）：mis-system HEAD 仍 `ef2cb4e`、根 HEAD 仍 `b75382f`（均第九轮末），工作树 clean，两仓库均未 push（mis-system ahead origin 29）；**零代码/文档变化**。
+  - **补录第九轮会话测试任务**（commit `e64a032`，第九轮文档 commit `ef2cb4e` 漏记）：
+    - `payment_fulfillment.py`：`process_issue_task` 耗尽分支接入 `mark_job_failed`（闭合"重试耗尽静默"缺口：order.failed + critical 异常事件 + Prometheus）；
+    - `test_payment_retry_lease.py`（+11）：claim 租约/过期回收 + mark_failed 告警 + record_exception + 退避/耗尽；
+    - `test_payment_route_notify.py`（+11）：webhook 异常映射 + 冲突 ACK + 真 DB confirm 端到端；
+    - 测试基线 **463 → 485 passed / 0 failed / 6 skipped (231.95s)** 零回归；
+    - `claim_pending_jobs`/`release_job_lease` 仍未接入 poller（多 worker 租约，单 worker 不暴露，YAGNI）。
 - 2026-07-17 21:22 — 第九轮续跑（init-project，主智能体直做——harness 无 Agent 子智能体入口）：第八轮之后 2 commit 增量核对 + revision id 生产阻塞根因记录：
   - `68261f1` docs: **P0 微信支付灰度 + 生产 alembic 收敛 runbook**（`docs/p0-wechat-greyscale-runbook.md` +137 行；Part A A0-A5 灰度 + Part B B1-B4 stamp/upgrade 决策）；
   - `f48d86d` fix(alembic): **revision id 缩短 < 32 适配 PG `version_num varchar(32)`（生产部署 setback 根因）**——生产 `alembic upgrade head` 卡 `StringDataRightTruncationError`（旧 id `exception_event_p1`=40 / `storage_cols`=38 字符超长）；**SQLite 不强制 varchar（本地盲区），PG 强制**；缩短 `cms_payment_webhook_p0`→`cms_pmt_p0`(10) / `cms_payment_exception_event_p1`→`cms_pmt_exc`(11) / `cms_media_asset_storage_cols`→`cms_media_cols`(14)，down_revision 链同步，heads=1；
@@ -310,6 +318,8 @@ docker compose up -d
 | **P0 真支付** | n/a | n/a | **64 项 P0 测试** | 64 项 | Day 1 数据底座 + Day 2 业务层（4 项 critical 缺口修复） |
 
 > 🆕 **第八轮·实施续重置基线（2026-07-17，commit `4194544`/`1340df6`/`418692a`/`fb47a49` 后实测）**：**463 passed / 0 failed / 6 skipped (230.14s)**（422 + wechat_pay_native 11 + tripgen 5 + alembic 幂等用例）；第九轮 `f48d86d` revision id 改名 `rg` 确认 `tests/` 无 id 引用 → 不影响测试，未重跑。
+
+> 🆕 **第十轮补录·测试任务后基线（2026-07-18，commit `e64a032` 后实测）**：**485 passed / 0 failed / 6 skipped (231.95s)**（463 + retry_lease 11 + route_notify 11；含 `process_issue_task` 接入 `mark_job_failed` 端到端验证）；零回归。
 
 > 详见 memory `project-fullstack-audit-2026-07-14.md` + `project-comprehensive-test-2026-07-13.md` + `project-sprint0-storage-2026-07-14.md` + `project-round8-implementation-2026-07-17.md`。
 
