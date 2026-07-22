@@ -227,3 +227,48 @@ async def confirm_activation(
     await session.commit()
     await session.refresh(ac)
     return ac
+
+
+@router.post("/code/{code}/refund", response_model=V2ActivationCodeOut)
+async def refund_activation(
+    code: str,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """经销商退款（激活后取消，F16）：退经销商余额 + membership/ac → refunded。
+
+    仅归属经销商 + activation status activated + membership 未核销（active）可退；
+    已核销（membership used）→ 409。退款后返点月结自动排除（M2.4 查 status=activated）。
+    """
+    ac = (
+        await session.execute(
+            select(V2ActivationCode).where(V2ActivationCode.code == code)
+        )
+    ).scalars().first()
+    if not ac:
+        raise HTTPException(404, "授权码不存在")
+    my_agent = await _find_my_agent(session, user.id)
+    if not my_agent or ac.agent_id != my_agent.id:
+        raise HTTPException(403, "仅归属经销商可退款")
+    if ac.status != "activated":
+        raise HTTPException(409, f"授权码状态 {ac.status}，不可退款")
+
+    m = (
+        await session.execute(
+            select(V2Membership).where(
+                V2Membership.activation_code_id == ac.id,
+                V2Membership.customer_user_id == ac.customer_user_id,
+                V2Membership.status == "active",
+            )
+        )
+    ).scalars().first()
+    if not m:
+        raise HTTPException(409, "权益已核销或已失效，不可退款")
+
+    bal = await _lock_balance(session, ac.agent_id)
+    bal.balance += ac.price  # 退款入经销商可用余额
+    m.status = "refunded"
+    ac.status = "refunded"
+    await session.commit()
+    await session.refresh(ac)
+    return ac
