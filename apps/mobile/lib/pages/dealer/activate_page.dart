@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../api/v2_api.dart';
+import '../scan_page.dart';
 
 /// 扫客户授权码 → 发起激活（冻结经销商余额，待客户二次确认）。
 class ActivatePage extends StatefulWidget {
@@ -53,18 +54,29 @@ class _ActivatePageState extends State<ActivatePage> {
           children: [
             TextField(
               controller: _code,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: '客户授权码（6 位）',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.qr_code_scanner),
+                border: const OutlineInputBorder(),
+                prefixIcon: const Icon(Icons.qr_code_scanner),
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.camera_alt),
+                  onPressed: () async {
+                    final result = await Navigator.push<String>(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ScanPage(title: '扫客户授权码'),
+                      ),
+                    );
+                    if (result != null) _code.text = result;
+                  },
+                ),
               ),
               keyboardType: TextInputType.number,
               maxLength: 6,
             ),
             const SizedBox(height: 8),
-            // TODO M4.4续：接相机扫码（mobile_scanner）
             const Text(
-              '输入客户出示的 6 位授权码（或后续接相机扫码）',
+              '输入或扫客户出示的 6 位授权码',
               style: TextStyle(color: Colors.grey, fontSize: 12),
             ),
             const SizedBox(height: 16),

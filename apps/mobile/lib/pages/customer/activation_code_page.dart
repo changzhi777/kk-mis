@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../api/v2_api.dart';
+import '../scan_page.dart';
 
 /// 生成授权码页：输入经销商推广码 + 选套餐 → 生成 6 位授权码（10min 倒计时）。
 ///
@@ -101,9 +102,21 @@ class _ActivationCodePageState extends State<ActivationCodePage> {
       children: [
         TextField(
           controller: _promo,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             labelText: '经销商推广码',
-            border: OutlineInputBorder(),
+            border: const OutlineInputBorder(),
+            suffixIcon: IconButton(
+              icon: const Icon(Icons.qr_code_scanner),
+              onPressed: () async {
+                final result = await Navigator.push<String>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const ScanPage(title: '扫经销商推广码'),
+                  ),
+                );
+                if (result != null) _promo.text = result;
+              },
+            ),
           ),
         ),
         const SizedBox(height: 12),
