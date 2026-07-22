@@ -3,10 +3,13 @@ import 'package:provider/provider.dart';
 
 import '../stores/auth_store.dart';
 import 'customer/activation_code_page.dart';
+import 'customer/membership_page.dart';
 import 'customer/realname_page.dart';
+import 'customer/reservation_page.dart';
 import 'dealer/activate_page.dart';
 import 'dealer/dashboard_page.dart';
 import 'dealer/recharge_page.dart';
+import 'dealer/statement_page.dart';
 
 /// 首页：按角色（经销商/消费者）显功能入口（M4.2 骨架，M4.3/4.4 接 API）。
 class HomePage extends StatelessWidget {
@@ -64,7 +67,12 @@ class _DealerHome extends StatelessWidget {
           trailing: const Icon(Icons.chevron_right),
           onTap: () => _push(context, const ActivatePage()),
         ),
-        const _MenuTile(icon: Icons.receipt_long, title: '月度对账'),
+        ListTile(
+          leading: const Icon(Icons.receipt_long, color: Color(0xFF0D9488)),
+          title: const Text('月度对账'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => _push(context, const StatementPage()),
+        ),
         const _MenuTile(icon: Icons.settings, title: '经销商申请 / 资质'),
       ],
     );
@@ -96,8 +104,24 @@ class _CustomerHome extends StatelessWidget {
             MaterialPageRoute(builder: (_) => const RealnamePage()),
           ),
         ),
-        const _MenuTile(icon: Icons.card_membership, title: '我的权益'),
-        const _MenuTile(icon: Icons.event, title: '预约出行'),
+        ListTile(
+          leading: const Icon(Icons.card_membership, color: Color(0xFF0D9488)),
+          title: const Text('我的权益'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const MembershipPage()),
+          ),
+        ),
+        ListTile(
+          leading: const Icon(Icons.event, color: Color(0xFF0D9488)),
+          title: const Text('预约出行'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ReservationPage()),
+          ),
+        ),
       ],
     );
   }
