@@ -4,6 +4,7 @@
 详见 memory `project-v2-app-b2b-dealer-redesign-2026-07-21`
   + .zcf/plan/current/v2-app-redesign.md
 """
+from .activation import V2ActivationCode
 from .dealer import (
     V2DealerApplication,
     V2DealerBalance,
@@ -18,4 +19,5 @@ __all__ = [
     "V2DealerBalance",
     "V2DealerRecharge",
     "V2DealerQualification",
+    "V2ActivationCode",
 ]

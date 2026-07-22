@@ -66,6 +66,8 @@ class User(Base):
     status = Column(Boolean, default=True)
     last_login = Column(DateTime, nullable=True)
     preferences = Column(JSON, nullable=True)  # 用户偏好（dashboard 模块顺序等）
+    # V2.0 统一用户模型（customer 经销商的客户 / dealer 经销商本人）；默认 customer
+    user_type = Column(String(16), default="customer", nullable=False, index=True)
     created_at = Column(DateTime, default=utcnow)
 
 

@@ -1,6 +1,12 @@
 """V2.0 业务路由聚合（注册到 /admin/api/v2/*，与 kk-mis /api/v1 隔离）"""
-from . import dealer, product
+from . import activation, dealer, product, promo, recharge
 
-v2_routers = [dealer.router, product.router]
+v2_routers = [
+    dealer.router,
+    product.router,
+    promo.router,
+    recharge.router,
+    activation.router,
+]
 
 __all__ = ["v2_routers"]

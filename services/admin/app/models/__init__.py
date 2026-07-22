@@ -40,6 +40,7 @@ from .oa import (
 )
 from .social import SocialAccount
 from .v2 import (  # V2.0 经销商域（B2B 预付激活模型，2026-07-21）
+    V2ActivationCode,
     V2DealerApplication,
     V2DealerBalance,
     V2DealerContract,
@@ -116,4 +117,5 @@ __all__ = [
     "V2DealerBalance",
     "V2DealerRecharge",
     "V2DealerQualification",
+    "V2ActivationCode",
 ]

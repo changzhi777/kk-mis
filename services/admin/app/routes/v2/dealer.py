@@ -115,6 +115,10 @@ async def approve_application(
     session.add(agent)
     await session.flush()  # 拿 agent.id
     session.add(V2DealerBalance(agent_id=agent.id))
+    # 标记用户为经销商（V2.0 统一用户模型 user_type=dealer）
+    dealer_user = await session.get(User, app.user_id)
+    if dealer_user:
+        dealer_user.user_type = "dealer"
     await session.commit()
     await session.refresh(app)
     return app
