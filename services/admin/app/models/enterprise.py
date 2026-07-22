@@ -68,6 +68,12 @@ class User(Base):
     preferences = Column(JSON, nullable=True)  # 用户偏好（dashboard 模块顺序等）
     # V2.0 统一用户模型（customer 经销商的客户 / dealer 经销商本人）；默认 customer
     user_type = Column(String(16), default="customer", nullable=False, index=True)
+    # V2.0 实名（M2.6：三要素 API，注册即实名；id_card 不存明文，存 SHA256 hash）
+    real_name = Column(String(50), nullable=True)
+    id_card_hash = Column(String(64), nullable=True)  # SHA256(id_card_no)，不存明文
+    realname_status = Column(
+        String(16), default="unverified", nullable=False, index=True
+    )  # unverified / verified
     created_at = Column(DateTime, default=utcnow)
 
 

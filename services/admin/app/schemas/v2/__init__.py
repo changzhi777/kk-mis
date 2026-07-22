@@ -16,6 +16,7 @@ from .dealer import (
     V2DealerQualificationOut,
     V2DealerQualificationVerify,
 )
+from .realname import V2RealnameStatus, V2RealnameVerify
 
 __all__ = [
     "V2DealerApplicationCreate",
@@ -32,4 +33,6 @@ __all__ = [
     "V2RechargeCreate",
     "V2RechargeOut",
     "V2BalanceOut",
+    "V2RealnameVerify",
+    "V2RealnameStatus",
 ]
