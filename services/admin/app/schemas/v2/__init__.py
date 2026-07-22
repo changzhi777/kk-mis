@@ -2,6 +2,7 @@
 from .activation import V2ActivationCodeCreate, V2ActivationCodeOut
 from .commerce import (
     V2BalanceOut,
+    V2DashboardOut,
     V2PromoCodeOut,
     V2RechargeCreate,
     V2RechargeOut,
@@ -42,6 +43,7 @@ __all__ = [
     "V2RechargeCreate",
     "V2RechargeOut",
     "V2BalanceOut",
+    "V2DashboardOut",
     "V2RealnameVerify",
     "V2RealnameStatus",
     "V2RebateRecordOut",

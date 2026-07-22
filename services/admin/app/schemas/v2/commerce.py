@@ -42,3 +42,14 @@ class V2BalanceOut(BaseModel):
     frozen: Decimal
     total_recharged: Decimal
     total_consumed: Decimal
+
+
+class V2DashboardOut(BaseModel):
+    """经销商工作台聚合（M3.5：余额/激活/返点 概览）。"""
+
+    balance: Decimal
+    frozen: Decimal
+    total_recharged: Decimal
+    total_consumed: Decimal
+    activated_count: int  # 已激活（未退款）授权码数
+    total_rebate: Decimal  # 累计已结算返点
