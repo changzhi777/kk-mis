@@ -46,6 +46,7 @@ from .v2 import (  # V2.0 经销商域（B2B 预付激活模型，2026-07-21）
     V2DealerContract,
     V2DealerQualification,
     V2DealerRecharge,
+    V2RebateRecord,
 )
 from .base import Base
 from .enterprise import (
@@ -118,4 +119,5 @@ __all__ = [
     "V2DealerRecharge",
     "V2DealerQualification",
     "V2ActivationCode",
+    "V2RebateRecord",
 ]
