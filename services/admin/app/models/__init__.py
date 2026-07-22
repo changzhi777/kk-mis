@@ -39,6 +39,13 @@ from .oa import (
     WorkReport,
 )
 from .social import SocialAccount
+from .v2 import (  # V2.0 经销商域（B2B 预付激活模型，2026-07-21）
+    V2DealerApplication,
+    V2DealerBalance,
+    V2DealerContract,
+    V2DealerQualification,
+    V2DealerRecharge,
+)
 from .base import Base
 from .enterprise import (
     Department,
@@ -103,4 +110,10 @@ __all__ = [
     "ReferralCommission",  # LOW：补 __all__ 导出（原漏）
     "WithdrawalRequest",
     "CardTransfer",
+    # V2.0 经销商域（B2B 预付激活模型，2026-07-21）
+    "V2DealerApplication",
+    "V2DealerContract",
+    "V2DealerBalance",
+    "V2DealerRecharge",
+    "V2DealerQualification",
 ]

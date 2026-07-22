@@ -1,4 +1,5 @@
 from .agent import agent_routers
+from .v2 import v2_routers  # V2.0 业务路由（B2B 经销商预付激活，2026-07-21）
 from .asset import asset_routers
 from .cms import cms_routers
 from .audit import router as audit_router
@@ -37,6 +38,7 @@ all_routers = [
     office_router,
     tripgen_router,
     storage_router,
+    *v2_routers,
 ]
 
 __all__ = ["all_routers"]
