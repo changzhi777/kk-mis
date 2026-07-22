@@ -26,6 +26,7 @@ from ...models import (
     V2DealerBalance,
     V2Membership,
 )
+from ...services.notifier import notify
 from ...schemas.v2.activation import V2ActivationCodeCreate, V2ActivationCodeOut
 from ...utils import utcnow
 
@@ -226,6 +227,16 @@ async def confirm_activation(
     )
     await session.commit()
     await session.refresh(ac)
+    # M3.6：激活成功通知（旁路 webhook，不阻塞业务）
+    await notify(
+        "v2.activation.confirmed",
+        {
+            "activation_code_id": ac.id,
+            "agent_id": ac.agent_id,
+            "customer_user_id": ac.customer_user_id,
+            "price": float(ac.price),
+        },
+    )
     return ac
 
 
@@ -271,4 +282,13 @@ async def refund_activation(
     ac.status = "refunded"
     await session.commit()
     await session.refresh(ac)
+    # M3.6：退款通知
+    await notify(
+        "v2.refund",
+        {
+            "activation_code_id": ac.id,
+            "agent_id": ac.agent_id,
+            "price": float(ac.price),
+        },
+    )
     return ac

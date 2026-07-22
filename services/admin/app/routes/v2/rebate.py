@@ -17,6 +17,7 @@ from ...db import get_session
 from ...deps import get_current_user
 from ...models import Agent, User, V2ActivationCode, V2DealerBalance, V2RebateRecord
 from ...schemas.v2.rebate import V2RebateRecordOut, V2RebateSettle
+from ...services.notifier import notify
 from ...utils import utcnow
 
 router = APIRouter(prefix="/api/v2/dealer/rebate", tags=["v2-rebate"])
@@ -155,4 +156,15 @@ async def settle_my_rebate(
     rec.settled_at = utcnow()
     await session.commit()
     await session.refresh(rec)
+    # M3.6：返点结算通知
+    await notify(
+        "v2.rebate.settled",
+        {
+            "agent_id": agent.id,
+            "period": period,
+            "total_sales": float(total),
+            "rebate_amount": float(amount),
+            "tier": tier,
+        },
+    )
     return rec
