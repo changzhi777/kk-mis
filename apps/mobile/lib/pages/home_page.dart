@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../stores/auth_store.dart';
+import 'customer/activation_code_page.dart';
+import 'customer/realname_page.dart';
 
 /// 首页：按角色（经销商/消费者）显功能入口（M4.2 骨架，M4.3/4.4 接 API）。
 class HomePage extends StatelessWidget {
@@ -48,11 +50,27 @@ class _CustomerHome extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
-      children: const [
-        _MenuTile(icon: Icons.qr_code, title: '扫经销商推广码'),
-        _MenuTile(icon: Icons.badge, title: '实名认证'),
-        _MenuTile(icon: Icons.card_membership, title: '我的权益'),
-        _MenuTile(icon: Icons.event, title: '预约出行'),
+      children: [
+        ListTile(
+          leading: const Icon(Icons.qr_code, color: Color(0xFF0D9488)),
+          title: const Text('生成授权码（推广码+套餐）'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ActivationCodePage()),
+          ),
+        ),
+        ListTile(
+          leading: const Icon(Icons.badge, color: Color(0xFF0D9488)),
+          title: const Text('实名认证'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const RealnamePage()),
+          ),
+        ),
+        const _MenuTile(icon: Icons.card_membership, title: '我的权益'),
+        const _MenuTile(icon: Icons.event, title: '预约出行'),
       ],
     );
   }
