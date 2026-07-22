@@ -114,6 +114,8 @@ _DEFAULT_MENUS = [
     ("v2", "V2经销商", "menu", "/v2", "Shop", None, 36),
     ("v2:dealer", "经销商管理", "menu", "/v2/dealer", "Connection", "v2", 10),
     ("v2:dealer:manage", "经销商管理操作", "api", "/api/v2/dealer", None, "v2:dealer", 1),
+    ("v2:tour", "团期管理", "menu", "/v2/tour", "Calendar", "v2", 20),
+    ("v2:tour:manage", "团期操作", "api", "/api/v2/tour-groups", None, "v2:tour", 1),
 ]
 
 _DEFAULT_CATEGORIES = [

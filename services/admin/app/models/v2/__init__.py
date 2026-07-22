@@ -13,6 +13,7 @@ from .dealer import (
     V2DealerRecharge,
 )
 from .rebate import V2RebateRecord
+from .tour import V2Reservation, V2ResourceStock, V2TourGroup
 
 __all__ = [
     "V2DealerApplication",
@@ -22,4 +23,7 @@ __all__ = [
     "V2DealerQualification",
     "V2ActivationCode",
     "V2RebateRecord",
+    "V2TourGroup",
+    "V2ResourceStock",
+    "V2Reservation",
 ]

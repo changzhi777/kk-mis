@@ -18,6 +18,13 @@ from .dealer import (
 )
 from .realname import V2RealnameStatus, V2RealnameVerify
 from .rebate import V2RebateRecordOut, V2RebateSettle
+from .tour import (
+    V2ReservationCreate,
+    V2ReservationOut,
+    V2ResourceStockOut,
+    V2TourGroupCreate,
+    V2TourGroupOut,
+)
 
 __all__ = [
     "V2DealerApplicationCreate",
@@ -38,4 +45,9 @@ __all__ = [
     "V2RealnameStatus",
     "V2RebateRecordOut",
     "V2RebateSettle",
+    "V2TourGroupCreate",
+    "V2TourGroupOut",
+    "V2ResourceStockOut",
+    "V2ReservationCreate",
+    "V2ReservationOut",
 ]
