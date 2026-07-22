@@ -4,6 +4,9 @@ import 'package:provider/provider.dart';
 import '../stores/auth_store.dart';
 import 'customer/activation_code_page.dart';
 import 'customer/realname_page.dart';
+import 'dealer/activate_page.dart';
+import 'dealer/dashboard_page.dart';
+import 'dealer/recharge_page.dart';
 
 /// 首页：按角色（经销商/消费者）显功能入口（M4.2 骨架，M4.3/4.4 接 API）。
 class HomePage extends StatelessWidget {
@@ -30,15 +33,39 @@ class HomePage extends StatelessWidget {
 class _DealerHome extends StatelessWidget {
   const _DealerHome();
 
+  void _push(BuildContext context, Widget page) =>
+      Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+
   @override
   Widget build(BuildContext context) {
     return ListView(
-      children: const [
-        _MenuTile(icon: Icons.dashboard, title: '工作台'),
-        _MenuTile(icon: Icons.account_balance_wallet, title: '充值 / 余额'),
-        _MenuTile(icon: Icons.qr_code_scanner, title: '扫授权码激活'),
-        _MenuTile(icon: Icons.receipt_long, title: '月度对账'),
-        _MenuTile(icon: Icons.settings, title: '经销商申请 / 资质'),
+      children: [
+        ListTile(
+          leading: const Icon(Icons.dashboard, color: Color(0xFF0D9488)),
+          title: const Text('工作台'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => _push(context, const DealerDashboardPage()),
+        ),
+        ListTile(
+          leading: const Icon(
+            Icons.account_balance_wallet,
+            color: Color(0xFF0D9488),
+          ),
+          title: const Text('充值'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => _push(context, const RechargePage()),
+        ),
+        ListTile(
+          leading: const Icon(
+            Icons.qr_code_scanner,
+            color: Color(0xFF0D9488),
+          ),
+          title: const Text('扫授权码激活'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => _push(context, const ActivatePage()),
+        ),
+        const _MenuTile(icon: Icons.receipt_long, title: '月度对账'),
+        const _MenuTile(icon: Icons.settings, title: '经销商申请 / 资质'),
       ],
     );
   }

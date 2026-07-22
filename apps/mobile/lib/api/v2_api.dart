@@ -72,4 +72,49 @@ class V2Api {
     final r = await ApiClient.instance.v2.post('/reservation', data: data);
     return (r.data as Map).cast<String, dynamic>();
   }
+
+  // ── 经销商域 ──
+  static Future<Map<String, dynamic>> getDashboard() async {
+    final r = await ApiClient.instance.v2.get('/dealer/dashboard');
+    return (r.data as Map).cast<String, dynamic>();
+  }
+
+  static Future<Map<String, dynamic>> recharge(
+    num amount, {
+    String channel = 'mock',
+  }) async {
+    final r = await ApiClient.instance.v2.post(
+      '/dealer/recharge',
+      data: {'amount': amount, 'channel': channel},
+    );
+    return (r.data as Map).cast<String, dynamic>();
+  }
+
+  /// 扫客户授权码 → 发起激活（冻结经销商余额）。
+  static Future<Map<String, dynamic>> initiateActivation(String code) async {
+    final r = await ApiClient.instance.v2.post('/activation/code/$code/initiate');
+    return (r.data as Map).cast<String, dynamic>();
+  }
+
+  static Future<Map<String, dynamic>> getStatement([String? period]) async {
+    final r = await ApiClient.instance.v2.get(
+      '/dealer/statement',
+      queryParameters: period != null ? {'period': period} : null,
+    );
+    return (r.data as Map).cast<String, dynamic>();
+  }
+
+  static Future<Map<String, dynamic>> settleRebate({
+    int? year,
+    int? month,
+  }) async {
+    final data = <String, dynamic>{};
+    if (year != null) data['year'] = year;
+    if (month != null) data['month'] = month;
+    final r = await ApiClient.instance.v2.post(
+      '/dealer/rebate/settle',
+      data: data,
+    );
+    return (r.data as Map).cast<String, dynamic>();
+  }
 }
