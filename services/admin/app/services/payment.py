@@ -69,6 +69,26 @@ class MockGateway:
         )
 
 
+class AlipayGateway:
+    """支付宝网关 stub。
+
+    真接入需 alipay-sdk + 商户 RSA 密钥（待业务确认后实现 pay/refund/query 对接
+    支付宝 alipay.trade.appPay / alipay.trade.refund / alipay.trade.query，同微信模式）。
+    当前所有方法 raise NotImplementedError，路由层映射为 503（待接入）。
+    """
+
+    async def pay(self, order_id: int, amount, subject: str = "") -> PaymentResult:
+        raise NotImplementedError("支付宝待接入（需 alipay-sdk + 商户 RSA 密钥）")
+
+    async def refund(
+        self, order_id: int, transaction_id: str, amount=None
+    ) -> PaymentResult:
+        raise NotImplementedError("支付宝待接入（需 alipay-sdk + 商户 RSA 密钥）")
+
+    async def query(self, order_id: int, transaction_id: str = "") -> PaymentResult:
+        raise NotImplementedError("支付宝待接入（需 alipay-sdk + 商户 RSA 密钥）")
+
+
 # 全局网关（真支付时替换）
 gateway: PaymentGateway = MockGateway()
 
@@ -108,9 +128,9 @@ def build_gateway_from_settings(settings: "Settings") -> PaymentGateway:
 
         return WechatPayV3Gateway.from_settings(settings)
     if provider == "alipay":
-        raise NotImplementedError(
-            "AlipayGateway 尚未实现；待 P0 Day 2.5 / Day 3 接入"
-        )
+        # 返回 AlipayGateway stub（实例化 OK，调用 pay/refund/query raise NotImplementedError）
+        # 路由层捕获映射 503；真接入实现 AlipayGateway 方法对接支付宝 API。
+        return AlipayGateway()
     raise ValueError(
         f"未知的 PAYMENT_PROVIDER={provider!r}（仅支持 mock|wechat|alipay）"
     )

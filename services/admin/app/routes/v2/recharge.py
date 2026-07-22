@@ -175,8 +175,11 @@ async def pay_recharge(
         raise HTTPException(403, "无权操作此充值")
     if rech.status == "paid":
         return {"recharge_id": rech.id, "pay_url": None, "status": "paid"}
+    if rech.channel == "alipay":
+        # M2.5 支付宝 stub：真接入需 alipay-sdk + 商户 RSA 密钥
+        raise HTTPException(503, "支付宝待接入（需 alipay-sdk + 商户密钥）")
     if rech.channel != "wechat":
-        raise HTTPException(400, f"渠道 {rech.channel} 暂不支持发起支付（仅 wechat）")
+        raise HTTPException(400, f"渠道 {rech.channel} 暂不支持发起支付（仅 wechat/alipay）")
     try:
         gw = WechatPayV3Gateway.from_settings()
     except (FileNotFoundError, ValueError) as e:
