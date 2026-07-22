@@ -41,7 +41,9 @@ def _apply_tier(total_sales: Decimal) -> tuple[str, Decimal]:
 
 async def _get_my_agent(session: AsyncSession, user_id: int) -> Optional[Agent]:
     return (
-        await session.execute(select(Agent).where(Agent.user_id == user_id))
+        await session.execute(
+            select(Agent).where(Agent.user_id == user_id, Agent.source == "v2")
+        )
     ).scalars().first()
 
 

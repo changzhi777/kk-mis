@@ -42,6 +42,10 @@ class Agent(Base):
     commission_rate = Column(Numeric(5, 4), default=Decimal("0"))
     promo_code = Column(String(16), unique=True, nullable=True, index=True)  # A1 推广码（8位，create 时生成）
     status = Column(Boolean, default=True)
+    # V2.0 加固：区分 V1 区域代理（source=v1）与 V2 经销商（source=v2）。
+    # 同一 user 可能既有 V1 代理又有 V2 经销商 agent，V2 查询必须按 source=v2 过滤，
+    # 否则 .first() 可能取到 V1 agent 导致资金/激活错位。
+    source = Column(String(8), default="v1", nullable=False, index=True)
     remark = Column(String(200), nullable=True)
     created_at = Column(DateTime, default=utcnow)
 

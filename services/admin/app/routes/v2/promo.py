@@ -35,7 +35,9 @@ async def get_my_promo_code(
     客户扫此码 → 生成授权码时锁定归属本经销商。
     """
     agent = (
-        await session.execute(select(Agent).where(Agent.user_id == user.id))
+        await session.execute(
+            select(Agent).where(Agent.user_id == user.id, Agent.source == "v2")
+        )
     ).scalars().first()
     if not agent:
         raise HTTPException(403, "尚未开通经销商身份")

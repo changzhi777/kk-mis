@@ -27,7 +27,9 @@ router = APIRouter(prefix="/api/v2/dealer", tags=["v2-dashboard"])
 
 async def _get_my_agent(session: AsyncSession, user_id: int):
     return (
-        await session.execute(select(Agent).where(Agent.user_id == user_id))
+        await session.execute(
+            select(Agent).where(Agent.user_id == user_id, Agent.source == "v2")
+        )
     ).scalars().first()
 
 

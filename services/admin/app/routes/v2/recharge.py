@@ -37,7 +37,9 @@ _CHANNELS = {"mock", "wechat", "alipay", "transfer"}
 
 async def _get_my_agent(session: AsyncSession, user_id: int) -> Agent | None:
     return (
-        await session.execute(select(Agent).where(Agent.user_id == user_id))
+        await session.execute(
+            select(Agent).where(Agent.user_id == user_id, Agent.source == "v2")
+        )
     ).scalars().first()
 
 

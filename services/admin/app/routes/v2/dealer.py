@@ -111,6 +111,7 @@ async def approve_application(
         region_code=app.province_code,
         commission_rate=Decimal("0"),
         status=True,
+        source="v2",  # V2 经销商 agent（与 V1 区域代理区分，查询按 source=v2 过滤）
     )
     session.add(agent)
     await session.flush()  # 拿 agent.id
@@ -204,7 +205,9 @@ async def submit_qualification(
     - 已 verified → 409（变更需联系平台）。
     """
     agent = (
-        await session.execute(select(Agent).where(Agent.user_id == user.id))
+        await session.execute(
+            select(Agent).where(Agent.user_id == user.id, Agent.source == "v2")
+        )
     ).scalars().first()
     if not agent:
         raise HTTPException(403, "尚未开通经销商身份，无法提交资质")
