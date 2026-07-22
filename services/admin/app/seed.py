@@ -110,6 +110,10 @@ _DEFAULT_MENUS = [
     ("cms:review", "评论管理", "menu", "/cms/review", "ChatLineSquare", "cms", 70),
     ("cms:review:list", "评论查询", "api", "/api/v1/cms/reviews", None, "cms:review", 1),
     ("cms:review:save", "评论审核", "api", "/api/v1/cms/reviews", None, "cms:review", 2),
+    # V2.0 经销商域（B2B 预付激活模型，2026-07-21；super_admin 自动绑全部权限码）
+    ("v2", "V2经销商", "menu", "/v2", "Shop", None, 36),
+    ("v2:dealer", "经销商管理", "menu", "/v2/dealer", "Connection", "v2", 10),
+    ("v2:dealer:manage", "经销商管理操作", "api", "/api/v2/dealer", None, "v2:dealer", 1),
 ]
 
 _DEFAULT_CATEGORIES = [

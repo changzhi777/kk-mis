@@ -5,6 +5,9 @@ from .dealer import (
     V2DealerApplicationReject,
     V2DealerContractCreate,
     V2DealerContractOut,
+    V2DealerQualificationCreate,
+    V2DealerQualificationOut,
+    V2DealerQualificationVerify,
 )
 
 __all__ = [
@@ -13,4 +16,7 @@ __all__ = [
     "V2DealerApplicationReject",
     "V2DealerContractCreate",
     "V2DealerContractOut",
+    "V2DealerQualificationCreate",
+    "V2DealerQualificationOut",
+    "V2DealerQualificationVerify",
 ]
