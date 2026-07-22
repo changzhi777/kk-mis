@@ -12,6 +12,7 @@ from .dealer import (
     V2DealerQualification,
     V2DealerRecharge,
 )
+from .membership import V2Membership
 from .rebate import V2RebateRecord
 from .tour import V2Reservation, V2ResourceStock, V2TourGroup
 
@@ -26,4 +27,5 @@ __all__ = [
     "V2TourGroup",
     "V2ResourceStock",
     "V2Reservation",
+    "V2Membership",
 ]

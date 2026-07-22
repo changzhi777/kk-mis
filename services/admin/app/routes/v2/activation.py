@@ -24,6 +24,7 @@ from ...models import (
     User,
     V2ActivationCode,
     V2DealerBalance,
+    V2Membership,
 )
 from ...schemas.v2.activation import V2ActivationCodeCreate, V2ActivationCodeOut
 from ...utils import utcnow
@@ -213,6 +214,16 @@ async def confirm_activation(
     bal.total_consumed += ac.price
     ac.status = "activated"
     ac.activated_at = utcnow()
+    # M3.2：建客户权益（套餐生效，闭合 M2.2 confirm 仅扣款的 TODO）
+    session.add(
+        V2Membership(
+            customer_user_id=user.id,
+            activation_code_id=ac.id,
+            product_id=ac.product_id,
+            status="active",
+            activated_at=ac.activated_at,
+        )
+    )
     await session.commit()
     await session.refresh(ac)
     return ac

@@ -11,14 +11,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...db import get_session
 from ...deps import get_current_user, require_permission
-from ...models import User, V2Reservation, V2ResourceStock, V2TourGroup
+from ...models import (
+    User,
+    V2Membership,
+    V2Reservation,
+    V2ResourceStock,
+    V2TourGroup,
+)
 from ...schemas.v2.tour import (
+    V2MembershipOut,
     V2ReservationCreate,
     V2ReservationOut,
     V2ResourceStockOut,
     V2TourGroupCreate,
     V2TourGroupOut,
 )
+from ...utils import utcnow
 
 router = APIRouter(prefix="/api/v2", tags=["v2-tour"])
 
@@ -157,6 +165,58 @@ async def list_my_reservations(
             select(V2Reservation)
             .where(V2Reservation.customer_user_id == user.id)
             .order_by(V2Reservation.id.desc())
+        )
+    ).scalars().all()
+    return rows
+
+
+@router.post("/reservation/{res_id}/redeem", response_model=V2ReservationOut)
+async def redeem_reservation(
+    res_id: int,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(require_permission("v2:tour:manage")),
+):
+    """出行核销（超管/运营）：reservation confirmed→used + 关联 membership active→used。
+
+    TODO M3.5：经销商工作台扫客户预约码核销（归属校验）。
+    """
+    res = await session.get(V2Reservation, res_id)
+    if not res:
+        raise HTTPException(404, "预约不存在")
+    if res.status != "confirmed":
+        raise HTTPException(409, f"预约状态 {res.status}，不可核销")
+    res.status = "used"
+    # 核销关联 membership（授权码来源的权益）
+    if res.activation_code_id:
+        m = (
+            await session.execute(
+                select(V2Membership).where(
+                    V2Membership.activation_code_id == res.activation_code_id,
+                    V2Membership.customer_user_id == res.customer_user_id,
+                    V2Membership.status == "active",
+                )
+            )
+        ).scalars().first()
+        if m:
+            m.status = "used"
+            m.used_at = utcnow()
+            m.reservation_id = res.id
+    await session.commit()
+    await session.refresh(res)
+    return res
+
+
+@router.get("/membership", response_model=list[V2MembershipOut])
+async def list_my_memberships(
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    """客户查自己的套餐权益（倒序）。"""
+    rows = (
+        await session.execute(
+            select(V2Membership)
+            .where(V2Membership.customer_user_id == user.id)
+            .order_by(V2Membership.id.desc())
         )
     ).scalars().all()
     return rows

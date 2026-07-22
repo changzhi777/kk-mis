@@ -61,3 +61,19 @@ class V2ReservationOut(BaseModel):
     car_qty: int
     status: str
     created_at: Optional[datetime]
+
+
+class V2MembershipOut(BaseModel):
+    """客户套餐权益（M3.2：激活后建，核销 used）。"""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    customer_user_id: int
+    activation_code_id: int
+    product_id: int
+    status: str
+    activated_at: datetime
+    used_at: Optional[datetime]
+    reservation_id: Optional[int]
+    created_at: Optional[datetime]

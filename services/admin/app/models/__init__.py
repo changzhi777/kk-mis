@@ -46,6 +46,7 @@ from .v2 import (  # V2.0 经销商域（B2B 预付激活模型，2026-07-21）
     V2DealerContract,
     V2DealerQualification,
     V2DealerRecharge,
+    V2Membership,
     V2RebateRecord,
     V2Reservation,
     V2ResourceStock,
@@ -126,4 +127,5 @@ __all__ = [
     "V2TourGroup",
     "V2ResourceStock",
     "V2Reservation",
+    "V2Membership",
 ]

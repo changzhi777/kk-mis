@@ -19,6 +19,7 @@ from .dealer import (
 from .realname import V2RealnameStatus, V2RealnameVerify
 from .rebate import V2RebateRecordOut, V2RebateSettle
 from .tour import (
+    V2MembershipOut,
     V2ReservationCreate,
     V2ReservationOut,
     V2ResourceStockOut,
@@ -50,4 +51,5 @@ __all__ = [
     "V2ResourceStockOut",
     "V2ReservationCreate",
     "V2ReservationOut",
+    "V2MembershipOut",
 ]
